@@ -6,6 +6,7 @@ metadata:
   labels:
     app: redis
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app: redis
@@ -26,9 +27,12 @@ spec:
               cpu: "500m"
           ports:
             - containerPort: 6379
+          command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
           volumeMounts:
             - name: config
               mountPath: "/usr/local/etc/redis/redis.conf"
+              subPath: redis.conf
+
             - name: data
               mountPath: "/data"
 
