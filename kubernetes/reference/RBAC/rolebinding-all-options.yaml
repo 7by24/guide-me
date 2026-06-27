@@ -1,0 +1,60 @@
+apiVersion: rbac.authorization.k8s.io/v1  # API 版本，RBAC 属于 rbac.authorization.k8s.io 组 v1
+kind: RoleBinding                         # 资源类型标识，必须为 RoleBinding（命名空间级绑定）
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-rolebinding                 # RoleBinding 名称，同一命名空间内必须唯一
+  namespace: default                        # 所属命名空间（RoleBinding 是命名空间级资源）
+  labels:                                   # 标签集合
+    app: example
+    type: rbac
+  annotations:                                # 注解集合
+    description: "Bind role to user/serviceaccount in namespace"
+  generateName: rolebinding-                # 名称前缀（与 name 互斥）
+
+# ==========================================
+# roleRef: 引用的角色（核心字段，不可变）
+# ==========================================
+roleRef:
+  apiGroup: rbac.authorization.k8s.io       # API 组，必须为 rbac.authorization.k8s.io
+  kind: Role                                # 角色类型：Role（命名空间级）或 ClusterRole（集群级）
+  name: example-role                        # 引用的 Role 或 ClusterRole 名称
+                                            # 引用 ClusterRole 时，权限限制在 RoleBinding 的 namespace 内
+
+# ==========================================
+# subjects: 被授权的主体列表（核心字段）
+# ==========================================
+subjects:
+  # --- 类型 1: ServiceAccount ---
+  - kind: ServiceAccount                    # 主体类型：ServiceAccount
+    name: example-sa                        # ServiceAccount 名称
+    namespace: default                      # ServiceAccount 所在命名空间（ServiceAccount 必须指定 namespace）
+
+  # --- 类型 2: User ---
+  - kind: User                              # 主体类型：User（外部身份认证系统用户）
+    name: alice@example.com                   # 用户名
+    apiGroup: rbac.authorization.k8s.io       # 用户的 API 组（必须为 rbac.authorization.k8s.io）
+    # namespace: 无                           # User 无 namespace
+
+  # --- 类型 3: Group ---
+  - kind: Group                             # 主体类型：Group（外部身份认证系统用户组）
+    name: developers                        # 用户组名称
+    apiGroup: rbac.authorization.k8s.io       # 组的 API 组（必须为 rbac.authorization.k8s.io）
+
+  # --- 类型 4: 通配符 User（谨慎使用） ---
+  - kind: User
+    name: system:anonymous                    # 匿名用户（未认证用户）
+    apiGroup: rbac.authorization.k8s.io
+
+  # --- 类型 5: 系统组 ---
+  - kind: Group
+    name: system:authenticated                # 所有已认证用户
+    apiGroup: rbac.authorization.k8s.io
+  - kind: Group
+    name: system:serviceaccounts                  # 所有 ServiceAccount
+    apiGroup: rbac.authorization.k8s.io
+  - kind: Group
+    name: system:serviceaccounts:default            # 特定命名空间的所有 ServiceAccount
+    apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,28 @@
+services:
+  grafana:
+    image: grafana/grafana:11.6
+    restart: unless-stopped
+    container_name: grafana
+    hostname: grafana
+    user: "1001"
+    ports:
+      - IP:8964:3000
+    volumes:
+      - ./data:/var/lib/grafana
+      - ./grafana.ini:/etc/grafana/grafana.ini
+      - ./logs:/var/log/grafana
+    environment:
+      - GF_LOG_MODE=console file
+      - GF_LOG_LEVEL=debug
+      - GF_SERVER_ROOT_URL=http://grafana.domain/
+      - GF_PLUGINS_PREINSTALL=grafana-clock-panel
+    networks:
+      - default
+      - prometheus
+
+networks:
+  default:
+    name: grafana_network
+  prometheus:
+    name: prometheus_network
+    external: true

@@ -1,0 +1,61 @@
+apiVersion: policy/v1                       # API 版本，PodDisruptionBudget 属于 policy 组 v1
+kind: PodDisruptionBudget                 # 资源类型标识，必须为 PodDisruptionBudget
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-pdb                       # PDB 名称，同一命名空间内必须唯一
+  namespace: default                      # 所属命名空间（PDB 是命名空间级资源）
+  labels:                                 # 标签集合
+    app: example
+    type: pdb
+  annotations:                            # 注解集合
+    description: "Ensure minimum availability during disruptions"
+  generateName: pdb-                      # 名称前缀（与 name 互斥）
+
+# ==========================================
+# spec: PodDisruptionBudget 的核心规约
+# ==========================================
+spec:
+  # --- 选择算符（核心字段） ---
+  selector:                               # 选择受保护的 Pod
+    matchLabels:                          # 标签匹配
+      app: example
+      tier: frontend
+    matchExpressions:                     # 表达式匹配
+      - key: environment
+        operator: In
+        values:
+          - production
+
+  # --- 最小可用 Pod 数量（与 maxUnavailable 互斥） ---
+  minAvailable: 2                         # 驱逐时必须保持的最小可用 Pod 数量
+                                          # 可以是整数（绝对数量）或百分比字符串（如 "50%"）
+  # minAvailable: "50%"                   # 百分比形式：至少 50% 的 Pod 保持可用
+
+  # --- 最大不可用 Pod 数量（与 minAvailable 互斥） ---
+  # maxUnavailable: 1                       # 驱逐时允许的最大不可用 Pod 数量
+                                          # 可以是整数或百分比字符串
+  # maxUnavailable: "25%"                 # 百分比形式：最多 25% 的 Pod 不可用
+
+  # --- 不健康 Pod 驱逐策略（v1.27+） ---
+  unhealthyPodEvictionPolicy: IfHealthyBudget  # 不健康 Pod 的驱逐策略：
+                                              # IfHealthyBudget（默认，仅在预算健康时允许驱逐不健康 Pod）
+                                              # AlwaysAllow（总是允许驱逐不健康 Pod，即使预算不足）
+
+# ==========================================
+# status: 当前状态（由系统维护）
+# ==========================================
+status:
+  observedGeneration: 1
+  disruptionsAllowed: 1                     # 当前允许的驱逐次数
+  currentHealthy: 3                         # 当前健康 Pod 数量
+  desiredHealthy: 2                         # 期望的最小健康 Pod 数量
+  expectedPods: 3                           # 期望的 Pod 总数
+  conditions:                               # 状态条件（v1.31+）
+    - type: DisruptionAllowed
+      status: "True"
+      reason: "SufficientPods"
+      message: ""
+      lastTransitionTime: "2024-01-01T00:00:00Z"

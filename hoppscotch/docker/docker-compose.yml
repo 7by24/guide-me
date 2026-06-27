@@ -1,0 +1,31 @@
+services:
+  hoppscotch:
+    image: hoppscotch/hoppscotch:2026.5.0
+    container_name: hopin
+    hostname: hopin
+    restart: unless-stopped
+    ports:
+      - "IP:8091:80"
+    env_file:
+      - .env
+    command: ["sh", "-c", "pnpm exec prisma migrate deploy && node /usr/src/app/aio_run.mjs"]
+    networks:
+      - default
+      - postgres
+
+  hoppscotch-proxy:
+    image: hoppscotch/proxyscotch
+    ports:
+      - "IP:9159:9159"
+    depends_on:
+      - hoppscotch
+    networks:
+      - default
+
+networks:
+  default:
+   name: hoppscotch_network
+   driver: bridge
+  postgres:
+    name: postgres_network
+    external: true

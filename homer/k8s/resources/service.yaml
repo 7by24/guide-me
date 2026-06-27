@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: homer-svc
+  namespace: homer
+spec:
+  selector:
+    app: homer
+  ports:
+    - port: 8090
+      targetPort: 8080

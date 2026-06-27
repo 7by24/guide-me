@@ -1,0 +1,103 @@
+apiVersion: v1                              # API 版本，ResourceQuota 属于核心组 v1
+kind: ResourceQuota                       # 资源类型标识，必须为 ResourceQuota
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-resourcequota               # ResourceQuota 名称，同一命名空间内必须唯一
+  namespace: default                        # 所属命名空间（ResourceQuota 是命名空间级资源）
+  labels:                                   # 标签集合
+    app: example
+    type: resource-quota
+  annotations:                              # 注解集合
+    description: "Resource quota for namespace"
+  generateName: resourcequota-            # 名称前缀（与 name 互斥）
+
+# ==========================================
+# spec: ResourceQuota 的核心规约
+# ==========================================
+spec:
+  # --- 硬限制（核心字段） ---
+  hard:                                     # 资源配额硬限制
+    # --- 计算资源 ---
+    requests.cpu: "10"                      # 命名空间内所有 Pod 的 CPU 请求总和上限
+    requests.memory: "20Gi"                   # 命名空间内所有 Pod 的内存请求总和上限
+    limits.cpu: "20"                        # 命名空间内所有 Pod 的 CPU 限制总和上限
+    limits.memory: "40Gi"                   # 命名空间内所有 Pod 的内存限制总和上限
+    requests.ephemeral-storage: "100Gi"     # 命名空间内所有 Pod 的临时存储请求总和上限
+    limits.ephemeral-storage: "200Gi"       # 命名空间内所有 Pod 的临时存储限制总和上限
+
+    # --- 扩展资源 ---
+    requests.nvidia.com/gpu: "4"            # GPU 请求总和上限
+    limits.nvidia.com/gpu: "8"              # GPU 限制总和上限
+
+    # --- 存储资源 ---
+    requests.storage: "500Gi"                 # 命名空间内所有 PVC 的存储请求总和上限
+    persistentvolumeclaims: "10"            # 命名空间内 PVC 数量上限
+    services.storage: "5"                   # StorageClass 为 standard 的 PVC 数量上限（需配合 StorageClass）
+    # <storage-class-name>.storageclass.storage.k8s.io/requests.storage: "100Gi"  # 特定 StorageClass 的存储请求上限
+    # <storage-class-name>.storageclass.storage.k8s.io/persistentvolumeclaims: "5"  # 特定 StorageClass 的 PVC 数量上限
+
+    # --- 对象数量限制 ---
+    pods: "50"                              # Pod 数量上限
+    replicationcontrollers: "10"            # ReplicationController 数量上限
+    resourcequotas: "1"                     # ResourceQuota 数量上限（通常设为 1）
+    services: "20"                          # Service 数量上限
+    services.loadbalancers: "5"             # LoadBalancer 类型 Service 数量上限
+    services.nodeports: "5"                 # NodePort 类型 Service 数量上限
+    secrets: "50"                           # Secret 数量上限
+    configmaps: "50"                        # ConfigMap 数量上限
+    persistentvolumeclaims: "20"            # PVC 数量上限（与 storage 重复时以较小者为准）
+    services: "20"                          # Service 数量上限
+
+    # --- 工作负载对象数量 ---
+    deployments.apps: "20"                  # Deployment 数量上限
+    replicasets.apps: "20"                  # ReplicaSet 数量上限
+    statefulsets.apps: "10"                 # StatefulSet 数量上限
+    daemonsets.apps: "10"                   # DaemonSet 数量上限
+    jobs.batch: "50"                        # Job 数量上限
+    cronjobs.batch: "20"                    # CronJob 数量上限
+    ingresses.networking.k8s.io: "10"       # Ingress 数量上限
+
+    # --- 其他对象 ---
+    count/roles.rbac.authorization.k8s.io: "20"           # Role 数量上限
+    count/rolebindings.rbac.authorization.k8s.io: "20"    # RoleBinding 数量上限
+    count/serviceaccounts: "20"                           # ServiceAccount 数量上限
+    count/networkpolicies.networking.k8s.io: "20"       # NetworkPolicy 数量上限
+
+  # --- 作用域（限制配额适用的对象范围） ---
+  scopeSelector:                            # 作用域选择器（v1.17+）
+    matchExpressions:                       # 表达式匹配
+      - operator: In                        # 操作符：In / NotIn / Exists / DoesNotExist
+        scopeName: PriorityClass            # 作用域名称
+        values:                             # 值列表
+          - high-priority
+          - medium-priority
+      - operator: NotIn
+        scopeName: Terminating              # 排除 Terminating Pod
+        values:
+          - "true"
+      - operator: Exists
+        scopeName: NotTerminating           # 仅包含非 Terminating Pod
+
+  # --- 作用域（旧版写法，与 scopeSelector 等价） ---
+  scopes:                                   # 作用域列表（旧版）
+    - Terminating                          # 仅包含设置了 activeDeadlineSeconds 的 Pod
+    - NotTerminating                       # 仅包含未设置 activeDeadlineSeconds 的 Pod
+    - BestEffort                           # 仅包含 BestEffort QoS 的 Pod（无资源请求/限制）
+    - NotBestEffort                        # 仅包含非 BestEffort QoS 的 Pod（有资源请求/限制）
+    - PriorityClass                        # 需配合 scopeSelector 使用
+
+# ==========================================
+# status: 当前状态（由系统维护）
+# ==========================================
+status:
+  hard:
+    pods: "50"
+    requests.cpu: "10"
+    requests.memory: "20Gi"
+  used:
+    pods: "12"
+    requests.cpu: "2500m"
+    requests.memory: "5Gi"

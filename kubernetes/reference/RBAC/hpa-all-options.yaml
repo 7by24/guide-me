@@ -1,0 +1,164 @@
+apiVersion: autoscaling/v2                  # API 版本，HPA 属于 autoscaling 组 v2（推荐）
+kind: HorizontalPodAutoscaler             # 资源类型标识，必须为 HorizontalPodAutoscaler
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-hpa                       # HPA 名称，同一命名空间内必须唯一
+  namespace: default                      # 所属命名空间（HPA 是命名空间级资源）
+  labels:                                 # 标签集合
+    app: example
+    type: autoscaling
+  annotations:                            # 注解集合
+    description: "Auto-scale based on CPU and memory"
+  generateName: hpa-                      # 名称前缀（与 name 互斥）
+
+# ==========================================
+# spec: HorizontalPodAutoscaler 的核心规约
+# ==========================================
+spec:
+  # --- 扩缩容目标（核心字段） ---
+  scaleTargetRef:                         # 要自动扩缩容的目标资源
+    apiVersion: apps/v1                     # 目标资源的 API 版本
+    kind: Deployment                        # 目标资源类型：Deployment/StatefulSet/ReplicaSet/ReplicationController
+    name: example-deployment                  # 目标资源名称
+
+  # --- 最小/最大副本数 ---
+  minReplicas: 2                            # 最小副本数，默认 1
+  maxReplicas: 10                           # 最大副本数（必须 >= minReplicas）
+
+  # --- 指标列表（核心字段） ---
+  metrics:                                  # 触发扩缩容的指标列表
+    # --- 指标 1: 资源指标 - CPU 利用率 ---
+    - type: Resource                          # 指标类型：Resource（资源）/ Pods（Pod 指标）/ Object（对象指标）/ External（外部指标）/ ContainerResource（容器资源，v1.30+）
+      resource:
+        name: cpu                             # 资源名称：cpu / memory / storage / ephemeral-storage
+        target:
+          type: Utilization                   # 目标类型：Utilization（平均利用率百分比）/ AverageValue（平均值）/ Value（总值，仅 Object 类型）
+          averageUtilization: 50              # 平均 CPU 利用率目标百分比（50% = 当平均 CPU 使用达到 request 的 50% 时扩容）
+          # averageValue: "200m"              # 或指定平均绝对值（与 averageUtilization 互斥）
+
+    # --- 指标 2: 资源指标 - 内存利用率 ---
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70              # 平均内存利用率目标百分比
+
+    # --- 指标 3: 资源指标 - 内存绝对值 ---
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: AverageValue
+          averageValue: "500Mi"               # 平均内存使用目标绝对值
+
+    # --- 指标 4: Pod 指标（自定义指标） ---
+    - type: Pods
+      pods:
+        metric:
+          name: packets-per-second              # 自定义指标名称（需 metrics-server 或 Prometheus Adapter 支持）
+          selector:                             # 指标选择器（可选）
+            matchLabels:
+              app: example
+        target:
+          type: AverageValue
+          averageValue: "1k"                  # 平均每秒 1000 个包
+
+    # --- 指标 5: 对象指标（如 Ingress 请求数） ---
+    - type: Object
+      object:
+        describedObject:                      # 被描述的对象
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          name: example-ingress
+        metric:
+          name: requests-per-second             # 对象指标名称
+        target:
+          type: Value
+          value: "10k"                        # 目标总值（不是平均值）
+        # target:
+        #   type: AverageValue
+        #   averageValue: "100"               # 目标平均值
+
+    # --- 指标 6: 外部指标（如队列长度、云监控指标） ---
+    - type: External
+      external:
+        metric:
+          name: queue_messages_ready            # 外部指标名称（如 RabbitMQ 队列长度）
+          selector:
+            matchLabels:
+              queue: worker-queue
+        target:
+          type: AverageValue
+          averageValue: "30"                  # 平均队列长度目标
+        # target:
+        #   type: Value
+        #   value: "100"                      # 目标总值
+
+    # --- 指标 7: 容器资源指标（v1.30+） ---
+    - type: ContainerResource
+      containerResource:
+        name: cpu                             # 资源名称
+        container: main-container               # 容器名称（指定容器而非整个 Pod 的平均值）
+        target:
+          type: Utilization
+          averageUtilization: 60
+
+  # --- 行为配置（v1.18+） ---
+  behavior:                                 # 扩缩容行为配置
+    scaleUp:                                # 扩容行为
+      stabilizationWindowSeconds: 300       # 扩容稳定窗口（秒），防止指标抖动导致频繁扩容，默认 0
+      policies:                             # 扩容策略列表
+        - type: Percent                     # 策略类型：Percent（百分比）/ Pods（绝对数量）
+          value: 100                          # 每次扩容最多增加 100% 的副本数
+          periodSeconds: 60                   # 策略评估周期（秒）
+        - type: Pods
+          value: 4                            # 或每次扩容最多增加 4 个副本
+          periodSeconds: 60
+      selectPolicy: Max                     # 多策略时的选择策略：Max（取最大值，默认）/ Min（取最小值）/ Disabled（禁用扩容）
+
+    scaleDown:                              # 缩容行为
+      stabilizationWindowSeconds: 300       # 缩容稳定窗口（秒），默认 300（5 分钟），防止过早缩容
+      policies:
+        - type: Percent
+          value: 10                           # 每次缩容最多减少 10% 的副本数
+          periodSeconds: 60
+        - type: Pods
+          value: 2                            # 或每次缩容最多减少 2 个副本
+          periodSeconds: 60
+      selectPolicy: Min                     # 多策略时取最小值，使缩容更保守
+
+# ==========================================
+# status: 当前状态（由系统维护）
+# ==========================================
+status:
+  observedGeneration: 1
+  currentReplicas: 3
+  desiredReplicas: 5
+  currentMetrics:                           # 当前指标值
+    - type: Resource
+      resource:
+        name: cpu
+        current:
+          averageUtilization: 65
+          averageValue: "325m"
+    - type: Resource
+      resource:
+        name: memory
+        current:
+          averageUtilization: 45
+          averageValue: "450Mi"
+  conditions:                               # 状态条件
+    - type: ScalingActive
+      status: "True"
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+      reason: "ValidMetricFound"
+      message: "the HPA was able to successfully calculate a replica count from cpu resource utilization"
+    - type: ScalingLimited
+      status: "False"
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+      reason: "DesiredWithinRange"
+      message: "the desired replica count is within the acceptable range"

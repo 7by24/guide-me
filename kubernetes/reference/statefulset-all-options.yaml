@@ -1,0 +1,229 @@
+apiVersion: apps/v1                     # API 版本，StatefulSet 属于 apps 组 v1
+kind: StatefulSet                       # 资源类型标识，必须为 StatefulSet
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-statefulset             # StatefulSet 名称，同一命名空间内必须唯一
+  namespace: default                    # 所属命名空间
+  labels:                               # 标签集合
+    app: example
+    tier: database
+  annotations:                            # 注解集合
+    description: "Stateful application"
+  generateName: statefulset-            # 名称前缀（与 name 互斥）
+  finalizers:                           # 终结器列表
+    - apps.kubernetes.io/statefulset-protection
+  ownerReferences:                      # 所有者引用
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: example-deployment
+      uid: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+      controller: false
+      blockOwnerDeletion: true
+
+# ==========================================
+# spec: StatefulSet 的核心规约
+# ==========================================
+spec:
+  # --- 副本控制 ---
+  replicas: 3                           # 期望的 Pod 副本数量，默认 1。若由 HPA 管理则不应手动设置
+
+  # --- 选择算符 ---
+  selector:                             # Pod 标签选择算符，必须匹配 template.metadata.labels
+    matchLabels:
+      app: example
+      tier: database
+    matchExpressions:
+      - key: environment
+        operator: In
+        values:
+          - production
+
+  # --- 服务名（Headless Service） ---
+  serviceName: example-headless         # 关联的 Headless Service 名称，用于稳定的网络标识
+                                        # 每个 Pod 获得稳定的 DNS：pod-name.service-name.namespace.svc.cluster.local
+
+  # --- Pod 管理策略 ---
+  podManagementPolicy: OrderedReady     # Pod 创建/删除策略：
+                                        # OrderedReady（默认，按顺序创建/删除，等待前一个就绪）
+                                        # Parallel（并行创建/删除，用于无依赖场景）
+
+  # --- 更新策略 ---
+  updateStrategy:
+    type: RollingUpdate                   # 更新策略类型：RollingUpdate(默认)/OnDelete
+    rollingUpdate:
+      partition: 1                        # 分区更新，只有序号 >= partition 的 Pod 会被更新
+                                          # 用于金丝雀发布或灰度升级
+      maxUnavailable: 1                   # 更新期间允许不可用的 Pod 数量（v1.24+ Alpha，需特性门控）
+
+  # --- 持久卷声明模板 ---
+  volumeClaimTemplates:                 # PVC 模板列表，每个 Pod 独立创建 PVC
+    - metadata:
+        name: data                        # PVC 名称，Pod 中通过此名称引用
+        labels:
+          app: example
+      spec:
+        accessModes:
+          - ReadWriteOnce                  # 访问模式：ReadWriteOnce/ReadOnlyMany/ReadWriteMany/ReadWriteOncePod
+        storageClassName: standard        # 存储类名称
+        volumeMode: Filesystem            # 卷模式：Filesystem(默认)/Block
+        resources:
+          requests:
+            storage: 10Gi                 # 存储容量请求
+        selector:                         # PVC 选择算符（可选）
+          matchLabels:
+            release: stable
+        dataSource:                       # 数据源，用于从快照或现有 PVC 克隆（v1.20+）
+          kind: VolumeSnapshot
+          apiGroup: snapshot.storage.k8s.io
+          name: my-snapshot
+        dataSourceRef:                    # 数据源引用（v1.22+）
+          kind: VolumeSnapshot
+          apiGroup: snapshot.storage.k8s.io
+          name: my-snapshot
+
+  # --- 最小就绪时间 ---
+  minReadySeconds: 10                   # Pod 就绪后需持续多少秒才视为可用，默认 0
+
+  # --- 持久化策略 ---
+  persistentVolumeClaimRetentionPolicy:   # PVC 保留策略（v1.27+ Beta）
+    whenDeleted: Retain                   # StatefulSet 删除时 PVC 的处理：Retain(保留)/Delete(删除)
+    whenScaled: Retain                  # StatefulSet 缩容时 PVC 的处理：Retain(保留)/Delete(删除)
+
+  # --- 修订历史限制 ---
+  revisionHistoryLimit: 10            # 保留的旧版本数量，默认 10
+
+  # --- 终止 Pod（v1.35+ Beta） ---
+  # terminatingReplicas 在 status 中跟踪
+
+  # ==========================================
+  # template: Pod 模板
+  # ==========================================
+  template:
+    metadata:
+      labels:                           # Pod 标签，必须与 selector 匹配
+        app: example
+        tier: database
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      # --- 容器配置 ---
+      containers:
+        - name: main-container
+          image: mysql:8.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3306
+              name: mysql
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: password
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          volumeMounts:
+            - name: data                  # 引用 volumeClaimTemplates 中的 PVC
+              mountPath: /var/lib/mysql
+            - name: config
+              mountPath: /etc/mysql/conf.d
+          livenessProbe:
+            exec:
+              command:
+                - mysqladmin
+                - ping
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - mysqladmin
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+      # --- 初始化容器 ---
+      initContainers:
+        - name: init-data
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - "chown -R 999:999 /var/lib/mysql"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+
+      # --- 其他卷 ---
+      volumes:
+        - name: config
+          configMap:
+            name: mysql-config
+
+      # --- 服务账户 ---
+      serviceAccountName: db-sa
+
+      # --- 安全上下文 ---
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+
+      # --- 亲和性 ---
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: example
+                topologyKey: kubernetes.io/hostname
+
+      # --- 容忍度 ---
+      tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "database"
+          effect: "NoSchedule"
+
+      # --- 拓扑分布 ---
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: example
+
+      # --- 终止策略 ---
+      terminationGracePeriodSeconds: 60
+
+      # --- 重启策略 ---
+      restartPolicy: Always
+
+# ==========================================
+# status: 当前状态（由系统维护）
+# ==========================================
+status:
+  observedGeneration: 1
+  replicas: 3
+  readyReplicas: 3
+  currentReplicas: 3
+  updatedReplicas: 3
+  currentRevision: example-statefulset-abc123
+  updateRevision: example-statefulset-def456
+  collisionCount: 0
+  conditions:
+    - type: Ready
+      status: "True"
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+  availableReplicas: 3

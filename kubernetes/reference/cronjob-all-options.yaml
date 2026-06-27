@@ -1,0 +1,104 @@
+apiVersion: batch/v1                    # API 版本，CronJob 属于 batch 组 v1
+kind: CronJob                           # 资源类型标识，必须为 CronJob
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-cronjob                 # CronJob 名称，同一命名空间内必须唯一
+  namespace: default                    # 所属命名空间
+  labels:                               # 标签集合
+    app: example
+    type: scheduled
+  annotations:                            # 注解集合
+    description: "Scheduled batch job"
+  generateName: cronjob-                # 名称前缀（与 name 互斥）
+
+# ==========================================
+# spec: CronJob 的核心规约
+# ==========================================
+spec:
+  # --- 调度表达式 ---
+  schedule: "*/5 * * * *"               # Cron 表达式，定义 Job 执行时间：
+                                        # 分 时 日 月 周
+                                        # */5 * * * * = 每 5 分钟执行一次
+                                        # 0 2 * * * = 每天凌晨 2 点执行
+                                        # 0 0 * * 0 = 每周日午夜执行
+
+  # --- 时区（v1.27+ Beta） ---
+  timeZone: Asia/Shanghai               # 时区名称，遵循 IANA 时区数据库
+
+  # --- 并发策略 ---
+  concurrencyPolicy: Allow                # 并发策略：
+                                        # Allow（默认，允许并发执行多个 Job）
+                                        # Forbid（禁止并发，新 Job 被跳过）
+                                        # Replace（替换正在运行的旧 Job）
+
+  # --- 挂起 ---
+  suspend: false                        # 是否挂起 CronJob，挂起时不会创建新 Job
+
+  # --- 成功 Job 保留数量 ---
+  successfulJobsHistoryLimit: 3         # 保留的成功 Job 数量，默认 3
+
+  # --- 失败 Job 保留数量 ---
+  failedJobsHistoryLimit: 1             # 保留的失败 Job 数量，默认 1
+
+  # --- 起始截止期限 ---
+  startingDeadlineSeconds: 200          # 调度起始截止期限（秒），超过此时间未启动则标记为失败
+
+  # --- Job 模板 ---
+  jobTemplate:                          # 创建 Job 时使用的模板
+    metadata:
+      labels:                           # Job 标签
+        app: example
+        type: scheduled
+      annotations:
+        cronjob: "example-cronjob"
+    spec:
+      # --- Job 规约 ---
+      parallelism: 1                    # 并行运行的 Pod 数量
+      completions: 1                    # 成功完成的 Pod 数量
+      backoffLimit: 6                   # 失败重试次数
+      activeDeadlineSeconds: 3600       # Job 最长运行时间
+      ttlSecondsAfterFinished: 86400    # 完成后自动删除时间
+      suspend: false                    # 是否挂起
+
+      # --- Pod 模板 ---
+      template:
+        metadata:
+          labels:                       # Pod 标签
+            app: example
+            type: scheduled
+        spec:
+          containers:
+            - name: main-container
+              image: busybox:1.36
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -c
+                - "date; echo 'Hello from CronJob'"
+              resources:
+                requests:
+                  memory: "64Mi"
+                  cpu: "50m"
+                limits:
+                  memory: "128Mi"
+                  cpu: "100m"
+
+          restartPolicy: OnFailure      # Job 只允许 Never 或 OnFailure
+          terminationGracePeriodSeconds: 30
+          serviceAccountName: cronjob-sa
+
+# ==========================================
+# status: 当前状态（由系统维护）
+# ==========================================
+status:
+  lastScheduleTime: "2024-01-01T00:00:00Z"
+  lastSuccessfulTime: "2024-01-01T00:00:00Z"
+  active:
+    - apiVersion: batch/v1
+      kind: Job
+      name: example-cronjob-1704067200
+      namespace: default
+      uid: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx

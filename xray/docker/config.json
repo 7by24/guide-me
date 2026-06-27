@@ -1,0 +1,120 @@
+{
+    "log": {
+        "loglevel": "warning" // 只记录警告及更严重的日志，避免日志过多
+    },
+    "inbounds": [
+        {
+            "listen": "127.0.0.1", // 本地监听
+            "tag": "dokodemo-in", // 标识该入站流量
+            "port": 4431, // 入站端口，确保与 reality 配置一致
+            "protocol": "dokodemo-door", // 使用 dokodemo-door 协议
+            "settings": {
+                "address": "m.media-amazon.com", // 目标地址
+                "port": 443, // 使用常见的 HTTPS 端口
+                "network": "tcp" // 使用 TCP 协议
+            },
+            "sniffing": {
+                "enabled": true, // 启用流量嗅探
+                "destOverride": [
+                    "tls"
+                ], // 覆盖的目标协议
+                "routeOnly": true // 仅用于路由匹配，不进行数据转发
+            }
+        },
+        {
+            "listen": "0.0.0.0", // 监听所有接口
+            "port": 443, // 使用 443 端口
+            "protocol": "vless", // 使用 VLESS 协议
+            "settings": {
+                "clients": [
+                    {
+                        "id": "dfsfsfsfsfsfdsfsfs", // 客户端 ID
+                        "flow": "xtls-rprx-vision" // 使用 xtls 协议
+                    }
+                ],
+                "decryption": "none", // 不解密流量
+                "fallbacks": [] // 暂无备用设置
+            },
+            "streamSettings": {
+                "network": "tcp", // 使用 TCP 协议
+                "security": "reality", // 使用 Reality 安全协议
+                "realitySettings": {
+                    "show": false, // 隐藏 Reality 证书
+                    "dest": "127.0.0.1:4431", // 目标地址
+                    "fingerprint": "chrome", // 设置 Chrome 指纹，避免被检测
+                    "xver": 0, // 协议版本
+                    "serverNames": [
+                        "m.media-amazon.com"
+                    ], // SNI 设置
+                    "privateKey": "dsfdsfdsfsfsfsfs", // 私钥
+                    "shortIds": [
+                        "eb03242424278e"
+                    ]
+                }
+            },
+            "sniffing": {
+                "enabled": true, // 启用流量嗅探
+                "destOverride": [
+                    "http",
+                    "tls",
+                    "quic"
+                ], // 支持的协议覆盖
+                "routeOnly": true // 仅进行路由匹配
+            }
+        }
+    ],
+    "outbounds": [
+        {
+            "protocol": "freedom", // 直接连接互联网
+            "tag": "direct" // 出站标签为“direct”
+        },
+        {
+            "protocol": "blackhole", // 拦截并丢弃流量
+            "tag": "block" // 出站标签为“block”
+        }
+    ],
+    "routing": {
+        "domainStrategy": "IPIfNonMatch", // 使用 IP 匹配策略，如果域名不匹配则根据 IP 来路由
+        "rules": [
+            {
+                "inboundTag": [
+                    "dokodemo-in"
+                ], // 规则适用于“dokodemo-in”入站连接
+                "domain": [
+                    "m.media-amazon.com"
+                ], // 指定域名
+                "outboundTag": "direct" // 将流量发送到“direct”出站
+            },
+            {
+                "inboundTag": [
+                    "dokodemo-in"
+                ], // 规则适用于“dokodemo-in”入站连接
+                "outboundTag": "block" // 默认将流量阻止
+            },
+            {
+                "type": "field", // 基于字段类型进行规则设置
+                "domain": [
+                    "geosite:cn", // 中国大陆域名
+                    "geosite:geolocation-cn", // 中国区域域名
+                    "geosite:category-ads-all" // 广告域名
+                ],
+                "outboundTag": "block" // 将这些流量阻止
+            },
+            {
+                "type": "field", // 基于字段类型进行规则设置
+                "ip": [
+                    "geoip:private", // 私有 IP 地址
+                    "geoip:cn" // 中国的 IP 地址
+                ],
+                "outboundTag": "block" // 将这些流量阻止
+            },
+            {
+                "type": "field", // 基于协议字段进行规则设置
+                "protocol": [
+                    "bittorrent"
+                ], // 拦截 BitTorrent 协议流量
+                "outboundTag": "block" // 将该流量阻止
+            }
+        ]
+    }
+}

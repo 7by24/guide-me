@@ -1,0 +1,87 @@
+apiVersion: v1                          # API 版本，PVC 属于核心组 v1
+kind: PersistentVolumeClaim             # 资源类型标识，必须为 PersistentVolumeClaim
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-pvc                     # PVC 名称，同一命名空间内必须唯一
+  namespace: default                    # 所属命名空间（PVC 是命名空间级资源）
+  labels:                               # 标签集合
+    app: example
+    type: storage
+  annotations:                            # 注解集合
+    description: "Application persistent storage"
+    volume.beta.kubernetes.io/storage-provisioner: "kubernetes.io/aws-ebs"  # 存储供应者（旧版注解）
+  generateName: pvc-                    # 名称前缀（与 name 互斥）
+  finalizers:                           # 终结器列表
+    - kubernetes.io/pvc-protection       # 防止 PVC 被删除时仍有 Pod 使用
+
+# ==========================================
+# spec: PVC 的核心规约
+# ==========================================
+spec:
+  # --- 访问模式 ---
+  accessModes:                          # 访问模式列表（通常只写一个）
+    - ReadWriteOnce                      # 单节点读写（最常见）
+    # - ReadOnlyMany                     # 多节点只读
+    # - ReadWriteMany                    # 多节点读写（需要支持共享存储的后端）
+    # - ReadWriteOncePod                 # 单 Pod 读写（v1.22+，最严格的隔离）
+
+  # --- 存储类 ---
+  storageClassName: standard            # 存储类名称，指定使用哪个 StorageClass 动态 provision
+                                        # 设为 "" 表示不使用存储类（使用静态 PV）
+                                        # 不设置则使用默认 StorageClass（如果有）
+
+  # --- 卷模式 ---
+  volumeMode: Filesystem                # 卷模式：Filesystem(默认，作为文件系统挂载)/Block（作为块设备）
+
+  # --- 资源请求 ---
+  resources:
+    requests:
+      storage: 10Gi                     # 请求的存储容量
+    # limits:                           # 存储通常不设置 limits
+    #   storage: 20Gi
+
+  # --- 选择算符（静态绑定或匹配特定 PV） ---
+  selector:                             # 用于匹配已有的 PersistentVolume
+    matchLabels:                        # 标签匹配
+      release: stable
+      environment: production
+    matchExpressions:                   # 表达式匹配
+      - key: tier
+        operator: In
+        values:
+          - frontend
+          - backend
+
+  # --- 数据源（从快照或现有 PVC 克隆，v1.20+） ---
+  dataSource:                           # 数据源（已弃用，建议使用 dataSourceRef）
+    kind: VolumeSnapshot                # 数据源类型：VolumeSnapshot/PersistentVolumeClaim
+    apiGroup: snapshot.storage.k8s.io   # API 组（VolumeSnapshot 需要）
+    name: my-snapshot                   # 数据源名称
+
+  # --- 数据源引用（v1.22+，推荐） ---
+  dataSourceRef:                        # 数据源引用，支持跨命名空间
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io
+    name: my-snapshot
+    namespace: default                  # 数据源所在命名空间（v1.26+，用于跨命名空间引用）
+
+# ==========================================
+# status: 当前状态（由系统维护）
+# ==========================================
+status:
+  phase: Bound                          # 阶段：Pending(等待中)/Bound(已绑定)/Lost(丢失)
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 10Gi
+  conditions:
+    - type: Resizing
+      status: "False"
+      lastProbeTime: null
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+  storageClassName: standard
+  volumeMode: Filesystem
+  volumeName: pv-xxxxxx                 # 绑定的 PersistentVolume 名称

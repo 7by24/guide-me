@@ -1,0 +1,85 @@
+# 第四步：发布
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea-deployment
+  namespace: gitea
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitea
+  template:
+    metadata:
+      labels:
+        app: gitea
+    spec:
+      initContainers:
+        # 初始化：确保目录权限正确
+        - name: init-permissions
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /data/git/repositories
+              mkdir -p /data/gitea/avatars
+              mkdir -p /data/gitea/attachments
+              mkdir -p /data/gitea/conf
+              chown -R 1001:1001 /data
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      containers:
+        - name: gitea
+          image: gitea/gitea:1.26.2-rootless
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+            - name: ssh
+              containerPort: 22
+          env:
+            - name: USER_UID
+              value: "1001"
+            - name: USER_GID
+              value: "1001"
+            - name: GITEA_WORK_DIR
+              value: /data/gitea
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /data/gitea/conf/app.ini
+              subPath: app.ini
+            - name: tls-secret
+              mountPath: /etc/gitea/tls
+              readOnly: true
+          resources:
+            limits:
+              memory: "20Gi"
+              cpu: "1000m"
+            requests:
+              memory: "10Gi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+              scheme: HTTPS
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: gitea-pvc
+        - name: config
+          configMap:
+            name: gitea-config

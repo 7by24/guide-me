@@ -1,0 +1,190 @@
+apiVersion: rbac.authorization.k8s.io/v1  # API 版本，RBAC 属于 rbac.authorization.k8s.io 组 v1
+kind: ClusterRole                         # 资源类型标识，必须为 ClusterRole（集群级权限）
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-clusterrole               # ClusterRole 名称，集群范围内必须唯一
+  # namespace: 无                         # ClusterRole 是集群级资源，无 namespace 字段
+  labels:                                 # 标签集合
+    app: example
+    type: rbac
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"  # 聚合到 admin ClusterRole
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"   # 聚合到 edit ClusterRole
+  annotations:                              # 注解集合
+    description: "Cluster-wide role for monitoring and node management"
+  generateName: clusterrole-              # 名称前缀（与 name 互斥）
+
+# ==========================================
+# aggregationRule: 聚合规则（用于动态聚合其他 ClusterRole）
+# ==========================================
+aggregationRule:                            # 聚合规则，自动合并匹配标签的 ClusterRole 权限
+  clusterRoleSelectors:                     # ClusterRole 选择器列表
+    - matchLabels:                          # 标签匹配
+        rbac.example.com/aggregate-to-monitoring: "true"
+    - matchExpressions:                     # 表达式匹配
+        - key: rbac.example.com/aggregate-to-monitoring
+          operator: In
+          values:
+            - "true"
+            - "yes"
+
+# ==========================================
+# rules: 权限规则列表（与 Role 相同，但可访问集群级资源）
+# ==========================================
+rules:
+  # --- 规则 1: 对 Nodes 的完全控制 ---
+  - apiGroups:
+      - ""                                # 核心组
+    resources:
+      - nodes
+      - nodes/status
+      - nodes/proxy
+      - nodes/metrics
+      - nodes/spec
+      - nodes/stats
+      - nodes/log
+      - nodes/exec
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # --- 规则 2: 对 Namespaces 的完全控制 ---
+  - apiGroups:
+      - ""                                # 核心组
+    resources:
+      - namespaces
+      - namespaces/status
+      - namespaces/finalize
+    verbs:
+      - "*"                               # 所有操作权限
+
+  # --- 规则 3: 对 PersistentVolumes 的完全控制 ---
+  - apiGroups:
+      - ""                                # 核心组
+    resources:
+      - persistentvolumes
+      - persistentvolumes/status
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # --- 规则 4: 对 ClusterRoles 和 ClusterRoleBindings 的完全控制 ---
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterroles
+      - clusterrolebindings
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+      - escalate                        # 允许创建/更新比自己权限更大的角色（需特殊授权）
+      - bind                            # 允许绑定角色（需特殊授权）
+
+  # --- 规则 5: 对 StorageClasses 的控制 ---
+  - apiGroups:
+      - storage.k8s.io
+    resources:
+      - storageclasses
+      - storageclasses/status
+      - csidrivers
+      - csinodes
+      - volumeattachments
+      - volumeattachments/status
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # --- 规则 6: 对 MutatingWebhookConfigurations 的控制 ---
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - mutatingwebhookconfigurations
+      - validatingwebhookconfigurations
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # --- 规则 7: 对 CustomResourceDefinitions 的控制 ---
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+      - customresourcedefinitions/status
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # --- 规则 8: 对所有资源的只读访问（超级只读权限） ---
+  - apiGroups:
+      - "*"                               # 所有 API 组
+    resources:
+      - "*"                               # 所有资源类型
+    verbs:
+      - get
+      - list
+      - watch
+
+  # --- 规则 9: 对 Certificates 的控制（cert-manager） ---
+  - apiGroups:
+      - cert-manager.io
+    resources:
+      - certificates
+      - certificates/status
+      - certificaterequests
+      - certificaterequests/status
+      - issuers
+      - clusterissuers
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # --- 规则 10: 对非资源 URL 的访问 ---
+  - nonResourceURLs:
+      - /metrics
+      - /healthz
+      - /healthz/*
+      - /version
+      - /openapi/*
+      - /api
+      - /api/*
+      - /apis
+      - /apis/*
+    verbs:
+      - get

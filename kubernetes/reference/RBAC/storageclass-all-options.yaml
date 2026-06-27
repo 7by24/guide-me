@@ -1,0 +1,85 @@
+apiVersion: storage.k8s.io/v1             # API 版本，StorageClass 属于 storage.k8s.io 组 v1
+kind: StorageClass                        # 资源类型标识，必须为 StorageClass
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-storageclass                # StorageClass 名称，集群范围内必须唯一
+  # namespace: 无                           # StorageClass 是集群级资源，无 namespace 字段
+  labels:                                   # 标签集合
+    app: example
+    type: storage
+  annotations:                              # 注解集合
+    description: "Standard SSD storage class"
+    storageclass.kubernetes.io/is-default-class: "true"  # 设为默认 StorageClass（只能有一个默认）
+  generateName: storageclass-             # 名称前缀（与 name 互斥）
+
+# ==========================================
+# provisioner: 存储供应者（核心字段）
+# ==========================================
+provisioner: kubernetes.io/aws-ebs        # 存储供应者名称：
+                                          # kubernetes.io/aws-ebs（AWS EBS）
+                                          # kubernetes.io/gce-pd（GCE PD）
+                                          # kubernetes.io/azure-disk（Azure Disk）
+                                          # kubernetes.io/cinder（OpenStack Cinder）
+                                          # kubernetes.io/vsphere-volume（vSphere）
+                                          # kubernetes.io/no-provisioner（本地存储，需手动创建 PV）
+                                          # ebs.csi.aws.com（AWS EBS CSI）
+                                          # pd.csi.storage.gke.io（GCE PD CSI）
+                                          # disk.csi.azure.com（Azure Disk CSI）
+                                          # 其他 CSI 驱动名称
+
+# ==========================================
+# parameters: 供应者参数
+# ==========================================
+parameters:                               # 供应者特定参数
+  type: gp3                               # AWS EBS 类型：gp2/gp3/io1/io2/sc1/st1
+  fsType: ext4                            # 文件系统类型
+  encrypted: "true"                       # 是否加密
+  kmsKeyId: "arn:aws:kms:us-east-1:123456789012:key/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # KMS 密钥 ID
+  iopsPerGB: "10"                         # 每 GB 的 IOPS（io1/io2/gp3）
+  throughput: "125"                     # 吞吐量 MiB/s（gp3）
+  # zones: us-east-1a,us-east-1b        # 可用区（多区）
+  # allowAutoIOPSPerGBIncrease: "true"    # 允许自动增加 IOPS
+
+# ==========================================
+# reclaimPolicy: 回收策略
+# ==========================================
+reclaimPolicy: Delete                     # 回收策略：
+                                          # Delete（默认，PVC 删除后自动删除底层存储）
+                                          # Retain（PVC 删除后保留底层存储）
+
+# ==========================================
+# volumeBindingMode: 卷绑定模式
+# ==========================================
+volumeBindingMode: WaitForFirstConsumer     # 卷绑定模式：
+                                            # Immediate（立即绑定，创建 PVC 时立即 provision）
+                                            # WaitForFirstConsumer（延迟绑定，等 Pod 调度后再 provision，推荐用于拓扑感知）
+
+# ==========================================
+# allowVolumeExpansion: 允许卷扩容
+# ==========================================
+allowVolumeExpansion: true                # 是否允许通过 PVC 扩容底层存储（需 CSI 驱动支持）
+
+# ==========================================
+# mountOptions: 挂载选项
+# ==========================================
+mountOptions:                             # 文件系统挂载选项
+  - debug
+  - noatime
+  - discard
+
+# ==========================================
+# allowedTopologies: 允许拓扑
+# ==========================================
+allowedTopologies:                        # 限制此 StorageClass 可使用的拓扑域
+  - matchLabelExpressions:                # 标签表达式匹配
+      - key: topology.kubernetes.io/zone    # 可用区拓扑键
+        values:                           # 允许的可用区列表
+          - us-east-1a
+          - us-east-1b
+          - us-east-1c
+      - key: topology.kubernetes.io/region  # 区域拓扑键
+        values:
+          - us-east-1

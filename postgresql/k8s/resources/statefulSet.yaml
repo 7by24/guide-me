@@ -1,0 +1,150 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-statefulset
+  namespace: postgres
+  labels:
+    app.kubernetes.io/name: postgres # 应用名称
+    app.kubernetes.io/instance: postgres-prod # 实例标识
+    app.kubernetes.io/version: "18.3" # 版本
+    app.kubernetes.io/component: database # 组件类型
+    app.kubernetes.io/part-of: prod # 所属系统
+    app.kubernetes.io/managed-by: yaml # 管理工具
+spec:
+  serviceName: postgres-headless-svc
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:18.3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: postgres_user
+
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: postgres_password
+
+            - name: POSTGRES_DB
+              value: default
+
+            - name: POSTGRES_INITDB_ARGS
+              value: "--auth-host=scram-sha-256 --encoding=UTF8 --data-checksums" # ✅ 修正参数名
+
+          args:
+            - -c
+            - config_file=/conf.d/postgresql.conf
+            # - -c
+            # - hba_file=/conf.d/pg_hba.conf
+
+          volumeMounts:
+            - name: config
+              mountPath: /conf.d
+
+            # - name: config
+            #   mountPath: /conf.d/postgresql.conf
+            #   subPath: postgresql.conf
+            # - name: config
+            #   mountPath: /conf.d/pg_hba.conf
+            #   subPath: pg_hba.conf
+
+            - name: ssl-certs
+              mountPath: /certs
+              readOnly: true
+
+            - name: data
+              mountPath: /var/lib/postgresql
+
+          resources:
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+            requests:
+              memory: "1Gi"
+              cpu: "1000m"
+
+          # ========== 健康检查 ==========
+          # startupProbe:
+          #   exec:
+          #     command:
+          #       - sh
+          #       - -c
+          #       - pg_isready -U "$POSTGRES_USER" -d default # ✅ 修正：用 sh -c 才能解析环境变量
+          #   initialDelaySeconds: 5
+          #   periodSeconds: 5
+          #   failureThreshold: 30
+
+          # livenessProbe:
+          #   exec:
+          #     command:
+          #       - sh
+          #       - -c
+          #       - pg_isready -U "$POSTGRES_USER" # ✅ 修正：用 sh -c
+          #   initialDelaySeconds: 30
+          #   periodSeconds: 10
+          #   timeoutSeconds: 5
+          #   successThreshold: 1
+          #   failureThreshold: 3
+
+          # readinessProbe:
+          #   exec:
+          #     command:
+          #       - sh
+          #       - c
+          #       - pg_isready -U "$POSTGRES_USER" -d default # ✅ 修正：用 sh -c
+          #   initialDelaySeconds: 5
+          #   periodSeconds: 5
+          #   timeoutSeconds: 3
+          #   successThreshold: 1
+          #   failureThreshold: 3
+
+      volumes:
+        - name: config
+          configMap:
+            name: postgres-config
+        - name: ssl-certs
+          secret:
+            secretName: postgres-ssl
+            defaultMode: 0600
+            items: # 单独控制每个文件权限
+              - key: server.key
+                path: server.key
+                mode: 0600
+              - key: server.crt
+                path: server.crt
+                mode: 0644
+              - key: ca.crt
+                path: ca.crt
+                mode: 0644
+
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: ""
+        selector:
+          matchLabels:
+            app: postgres-pv
+            pod-index: "0"
+        resources:
+          requests:
+            storage: 20Gi

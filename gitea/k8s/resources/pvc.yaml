@@ -1,0 +1,38 @@
+# 第二步：定义持久化存储和申请存储空间
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gitea-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  # 根据存储后端选项选择一种：
+  # ---------------- 方式 1: 本地路径（单节点测试） ----------------
+  hostPath:
+    path: ./data
+  # ---------------- 方式 2: NFS（多节点共享） ----------------
+  # nfs:
+  #   server: 192.168.1.100
+  #   path: /exports/gitea
+  # ---------------- 方式 3: 已有云盘（AWS/阿里云等） ----------------
+  # awsElasticBlockStore:
+  #   volumeID: vol-xxxxxxxx
+  #   fsType: ext4
+
+---
+apiVersion: apps/v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitea-data
+  namespace: gitea
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ""
+  volumeName: gitea-pv
+  resources:
+    - requests:
+        storage: 10Gi

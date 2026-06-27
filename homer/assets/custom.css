@@ -1,0 +1,174 @@
+/* ============================================
+   Aurora Glass Theme for Homer
+   仅颜色风格调整，不修改任何盒模型属性
+   ============================================ */
+
+/* ---- 全局渐变背景 ---- */
+#app {
+    background: linear-gradient(to right, #4383e2 0%, #32a4ca 25%, #578FCA 50%, #3674B5 100%);
+    background-size: 400% 400%;
+    animation: gradientShift 120s ease infinite;
+}
+
+@keyframes gradientShift {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+/* ---- 头部导航栏 ---- */
+header {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    color: #1a202c !important;
+}
+
+header .heading {
+    color: #1a202c !important;
+}
+
+/* ---- 搜索框 ---- */
+.search-bar input {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    color: #2d3748 !important;
+    caret-color: #2d3748;
+}
+
+.search-bar input::placeholder {
+    color: rgba(45, 55, 72, 0.6) !important;
+}
+
+/* ---- 服务卡片 ---- */
+.card {
+    background-color: rgba(255, 255, 255, 0.12) !important;
+    color: #2d3748 !important;
+}
+
+.card:hover {
+    background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.card .title {
+    color: #2d3748 !important;
+}
+
+.card .subtitle {
+    color: #4a5568 !important;
+}
+
+/* ---- 标签/徽章（实色反差）---- */
+.tag {
+    background-color: #4f46e5 !important;
+    color: #ffffff !important;
+}
+
+.tag.is-success {
+    background-color: #10b981 !important;
+}
+
+.tag.is-warning {
+    background-color: #f59e0b !important;
+    color: #1f2937 !important;
+}
+
+.tag.is-danger {
+    background-color: #ef4444 !important;
+}
+
+/* ---- 链接颜色 ---- */
+a {
+    color: #2d3748 !important;
+}
+
+a:hover {
+    color: #4a5568 !important;
+}
+
+/* ---- 消息/提示框 ---- */
+.message {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    color: #2d3748 !important;
+}
+
+/* ---- 页脚 ---- */
+footer {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: #4a5568 !important;
+}
+
+footer a {
+    color: #3182ce !important;
+}
+
+/* ---- 暗色模式适配 ---- */
+.dark #app {
+    background: linear-gradient(to right, #121358 0%, #232F72 25%, #2F578A 50%, #36ADA3 100%);
+    background-size: 400% 400%;
+}
+
+.dark header {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    color: #f7fafc !important;
+}
+
+.dark header .heading {
+    color: #f7fafc !important;
+}
+
+.dark .search-bar input {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    color: #e2e8f0 !important;
+    caret-color: #e2e8f0;
+}
+
+.dark .search-bar input::placeholder {
+    color: rgba(226, 232, 240, 0.6) !important;
+}
+
+.dark .card {
+    background-color: rgba(0, 0, 0, 0.25) !important;
+    color: #e2e8f0 !important;
+}
+
+.dark .card:hover {
+    background-color: rgba(0, 0, 0, 0.35) !important;
+}
+
+.dark .card .title {
+    color: #e2e8f0 !important;
+}
+
+.dark .card .subtitle {
+    color: #a0aec0 !important;
+}
+
+.dark a {
+    color: #e2e8f0 !important;
+}
+
+.dark a:hover {
+    color: #a0aec0 !important;
+}
+
+.dark .message {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    color: #e2e8f0 !important;
+}
+
+.dark footer {
+    background-color: rgba(0, 0, 0, 0.15) !important;
+    color: #a0aec0 !important;
+}
+
+.dark footer a {
+    color: #63b3ed !important;
+}

@@ -1,0 +1,155 @@
+apiVersion: apps/v1                     # API 版本，DaemonSet 属于 apps 组 v1
+kind: DaemonSet                         # 资源类型标识，必须为 DaemonSet
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-daemonset               # DaemonSet 名称，同一命名空间内必须唯一
+  namespace: default                    # 所属命名空间
+  labels:                               # 标签集合
+    app: example
+    type: daemon
+  annotations:                            # 注解集合
+    description: "Node-level daemon"
+  generateName: daemonset-              # 名称前缀（与 name 互斥）
+  finalizers:                           # 终结器列表
+    - apps.kubernetes.io/daemonset-protection
+
+# ==========================================
+# spec: DaemonSet 的核心规约
+# ==========================================
+spec:
+  # --- 选择算符 ---
+  selector:                             # Pod 标签选择算符，必须匹配 template.metadata.labels
+    matchLabels:
+      app: example
+      type: daemon
+    matchExpressions:
+      - key: environment
+        operator: In
+        values:
+          - production
+
+  # --- 更新策略 ---
+  updateStrategy:
+    type: RollingUpdate                   # 更新策略类型：RollingUpdate(默认)/OnDelete
+    rollingUpdate:
+      maxSurge: 0                         # 更新期间可超出的 Pod 数量，默认 0（DaemonSet 中通常保持 0）
+      maxUnavailable: 1                   # 更新期间允许不可用的 Pod 数量，默认 1
+
+  # --- 最小就绪时间 ---
+  minReadySeconds: 0                    # Pod 就绪后需持续多少秒才视为可用，默认 0
+
+  # --- 修订历史限制 ---
+  revisionHistoryLimit: 10            # 保留的旧版本数量，默认 10
+
+  # ==========================================
+  # template: Pod 模板
+  # ==========================================
+  template:
+    metadata:
+      labels:                           # Pod 标签，必须与 selector 匹配
+        app: example
+        type: daemon
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      # --- 容器配置 ---
+      containers:
+        - name: main-container
+          image: fluentd:v1.16
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: "200Mi"
+              cpu: "100m"
+            limits:
+              memory: "500Mi"
+              cpu: "200m"
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+          env:
+            - name: FLUENTD_OPT
+              value: "-v"
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "pgrep fluentd"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+      # --- 容忍度（允许调度到所有节点，包括 master） ---
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - operator: Exists              # 容忍所有污点（最宽松）
+
+      # --- 节点亲和性（可选，限制部署到特定节点） ---
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+
+      # --- 卷配置 ---
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+            type: Directory
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+            type: Directory
+
+      # --- 服务账户 ---
+      serviceAccountName: daemon-sa
+
+      # --- 安全上下文 ---
+      securityContext:
+        runAsUser: 0                      # 通常需要 root 权限访问宿主机资源
+
+      # --- 终止策略 ---
+      terminationGracePeriodSeconds: 30
+
+      # --- 重启策略 ---
+      restartPolicy: Always
+
+      # --- 使用宿主机网络/进程命名空间 ---
+      hostNetwork: true                   # 使用宿主机网络（日志收集等场景常用）
+      hostPID: true                       # 共享宿主机 PID 命名空间
+
+# ==========================================
+# status: 当前状态（由系统维护）
+# ==========================================
+status:
+  currentNumberScheduled: 3
+  numberMisscheduled: 0
+  desiredNumberScheduled: 3
+  numberReady: 3
+  observedGeneration: 1
+  updatedNumberScheduled: 3
+  numberAvailable: 3
+  numberUnavailable: 0
+  collisionCount: 0
+  conditions:
+    - type: DaemonSetRolloutProgressing
+      status: "True"
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+      reason: NewDaemonSetPodAvailable
+      message: "DaemonSet has progressed"

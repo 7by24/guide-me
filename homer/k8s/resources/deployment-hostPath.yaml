@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homer-deployment
+  namespace: homer
+  labels:
+    app: homer
+spec:
+  # replicas: 1 # 因为绑定本地目录，所以指定了节点，不再使用高可用副本
+  selector:
+    matchLabels:
+      app: homer
+  template:
+    metadata:
+      labels:
+        app: homer
+    spec:
+      containers:
+        - name: homer
+          image: b4bz/homer
+          imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: homer-data
+              mountPath: /www/assets #容器内目录
+      volumes:
+        - name: homer-data
+          hostPath:
+            path: /homer #本地目录
+            type: ""
+      nodeName: node #指定节点

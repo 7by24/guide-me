@@ -1,0 +1,142 @@
+apiVersion: networking.k8s.io/v1          # API 版本，NetworkPolicy 属于 networking.k8s.io 组 v1
+kind: NetworkPolicy                       # 资源类型标识，必须为 NetworkPolicy
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-networkpolicy               # NetworkPolicy 名称，同一命名空间内必须唯一
+  namespace: default                        # 所属命名空间（NetworkPolicy 是命名空间级资源）
+  labels:                                   # 标签集合
+    app: example
+    type: network-policy
+  annotations:                              # 注解集合
+    description: "Restrict network traffic for application"
+  generateName: networkpolicy-              # 名称前缀（与 name 互斥）
+
+# ==========================================
+# spec: NetworkPolicy 的核心规约
+# ==========================================
+spec:
+  # --- Pod 选择算符（核心字段） ---
+  podSelector:                              # 选择受此策略影响的 Pod
+    matchLabels:                            # 标签匹配
+      app: example
+      tier: frontend
+    matchExpressions:                       # 表达式匹配
+      - key: environment
+        operator: In
+        values:
+          - production
+          - staging
+    # matchLabels: {}                       # 空选择器表示选择命名空间中所有 Pod
+
+  # --- 策略类型 ---
+  policyTypes:                              # 策略类型列表（至少指定一个）
+    - Ingress                               # 入站流量策略
+    - Egress                                # 出站流量策略
+
+  # ==========================================
+  # ingress: 入站流量规则列表
+  # ==========================================
+  ingress:
+    # --- 规则 1: 允许来自同一命名空间特定标签 Pod 的流量 ---
+    - from:                                 # 来源选择器列表（OR 关系）
+        - podSelector:                      # 同一命名空间的 Pod 选择器
+            matchLabels:
+              app: backend
+        - namespaceSelector:                # 命名空间选择器（允许来自特定命名空间的所有 Pod）
+            matchLabels:
+              name: trusted-namespace
+        - podSelector:                      # 组合：来自特定命名空间中特定标签的 Pod
+            matchLabels:
+              app: api
+          namespaceSelector:
+            matchLabels:
+              name: api-namespace
+        - ipBlock:                          # IP 地址块（CIDR）
+            cidr: 10.0.0.0/8                  # 允许的 CIDR 范围
+            except:                           # 排除的 CIDR 范围
+              - 10.0.1.0/24
+              - 10.0.2.0/24
+      ports:                                # 允许的端口列表（AND 关系，必须同时满足 from 和 ports）
+        - protocol: TCP                     # 协议：TCP / UDP / SCTP
+          port: 80                          # 目标端口（Pod 端口）
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 8080
+
+    # --- 规则 2: 允许来自所有命名空间的流量（但限制端口） ---
+    - from:
+        - namespaceSelector: {}             # 空选择器表示所有命名空间
+      ports:
+        - protocol: TCP
+          port: 80
+
+    # --- 规则 3: 允许来自特定 ServiceAccount 的流量（需配合 CNI 实现） ---
+    - from:
+        - podSelector:
+            matchLabels:
+              app: monitoring
+      ports:
+        - protocol: TCP
+          port: 9090
+
+  # ==========================================
+  # egress: 出站流量规则列表
+  # ==========================================
+  egress:
+    # --- 规则 1: 允许访问同一命名空间特定 Pod ---
+    - to:                                   # 目标选择器列表（OR 关系）
+        - podSelector:
+            matchLabels:
+              app: database
+      ports:
+        - protocol: TCP
+          port: 3306                        # MySQL 端口
+
+    # --- 规则 2: 允许访问特定命名空间的 DNS 服务 ---
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53                          # DNS 端口
+        - protocol: TCP
+          port: 53                          # DNS over TCP
+
+    # --- 规则 3: 允许访问外部 API ---
+    - to:
+        - ipBlock:
+            cidr: 203.0.113.0/24            # 外部 API 服务器 CIDR
+      ports:
+        - protocol: TCP
+          port: 443
+
+    # --- 规则 4: 允许访问所有外部（0.0.0.0/0）---
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+    # --- 规则 5: 允许访问 Kubernetes API Server ---
+    - to:
+        - ipBlock:
+            cidr: 10.96.0.1/32              # API Server 集群 IP
+      ports:
+        - protocol: TCP
+          port: 443
+
+  # --- 默认行为说明 ---
+  # 未匹配 ingress 规则的入站流量：拒绝（默认拒绝）
+  # 未匹配 egress 规则的出站流量：拒绝（当 policyTypes 包含 Egress 时）
+  # 同一命名空间内的 Pod 间通信：默认允许（除非被策略限制）

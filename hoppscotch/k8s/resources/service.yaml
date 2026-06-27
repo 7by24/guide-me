@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hopin-svc
+  namespace: hopin
+spec:
+  selector:
+    app: hopin
+
+  ports:
+    - name: http-main
+      port: 8091
+      targetPort: 80
+
+    - name: http-proxy
+      port: 9159
+      targetPort: 9159

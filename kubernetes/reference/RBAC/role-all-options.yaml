@@ -1,0 +1,235 @@
+apiVersion: rbac.authorization.k8s.io/v1  # API 版本，RBAC 属于 rbac.authorization.k8s.io 组 v1
+kind: Role                                # 资源类型标识，必须为 Role（命名空间级权限）
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-role                      # Role 名称，同一命名空间内必须唯一
+  namespace: default                      # 所属命名空间（Role 是命名空间级资源）
+  labels:                                 # 标签集合
+    app: example
+    type: rbac
+  annotations:                              # 注解集合
+    description: "Application role for namespace resources"
+  generateName: role-                     # 名称前缀（与 name 互斥）
+
+# ==========================================
+# rules: 权限规则列表（核心字段）
+# ==========================================
+rules:
+  # --- 规则 1: 对 Pods 的完全控制 ---
+  - apiGroups:                            # API 组列表，空字符串 "" 表示核心组（core/v1）
+      - ""                                # 核心组（Pod、Service、ConfigMap 等）
+    resources:                            # 资源类型列表
+      - pods
+      - pods/status                       # 子资源（如 status、log、exec 等）
+      - pods/log                          # 查看日志的子资源
+      - pods/exec                         # 执行命令的子资源
+      - pods/portforward                  # 端口转发的子资源
+    verbs:                                # 允许的操作列表
+      - get                               # 获取单个资源详情
+      - list                              # 列出资源列表
+      - watch                             # 监视资源变化（用于 informer）
+      - create                            # 创建资源
+      - update                            # 更新资源（完整替换）
+      - patch                             # 部分更新资源
+      - delete                            # 删除资源
+      - deletecollection                  # 批量删除集合
+
+  # --- 规则 2: 对 Services 的只读访问 ---
+  - apiGroups:
+      - ""                                # 核心组
+    resources:
+      - services
+      - services/proxy                    # 代理子资源
+    verbs:
+      - get
+      - list
+      - watch
+
+  # --- 规则 3: 对 ConfigMaps 的读写（无删除权限） ---
+  - apiGroups:
+      - ""                                # 核心组
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+
+  # --- 规则 4: 对 Secrets 的只读访问 ---
+  - apiGroups:
+      - ""                                # 核心组
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+    resourceNames:                        # 限制只能访问指定的资源实例名称
+      - app-secret                       # 只允许访问名为 app-secret 的 Secret
+      - db-secret
+
+  # --- 规则 5: 对 Deployments 的完全控制（apps 组） ---
+  - apiGroups:
+      - apps                              # apps API 组
+    resources:
+      - deployments
+      - deployments/scale                 # 扩缩容子资源
+      - deployments/status                # 状态子资源
+      - replicasets                       # 级联权限
+      - replicasets/scale
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # --- 规则 6: 对 StatefulSets 的完全控制 ---
+  - apiGroups:
+      - apps
+    resources:
+      - statefulsets
+      - statefulsets/scale
+      - statefulsets/status
+    verbs:
+      - "*"                               # 通配符，表示所有操作权限
+
+  # --- 规则 7: 对 Jobs 的控制（batch 组） ---
+  - apiGroups:
+      - batch
+    resources:
+      - jobs
+      - jobs/status
+      - cronjobs
+      - cronjobs/status
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # --- 规则 8: 对 Ingress 的控制（networking.k8s.io 组） ---
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses
+      - ingresses/status
+      - ingressclasses
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # --- 规则 9: 对自定义资源（CRD）的控制 ---
+  - apiGroups:
+      - mygroup.example.com               # 自定义 API 组
+    resources:
+      - myresources                       # 自定义资源类型
+      - myresources/status
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # --- 规则 10: 对非资源 URL 的访问（如 /healthz、/metrics） ---
+  - nonResourceURLs:                      # 非资源 URL 路径列表
+      - /healthz                          # 健康检查端点
+      - /healthz/*                        # 健康检查子路径
+      - /metrics                          # 指标端点
+      - /version                          # 版本信息
+      - /openapi/*                        # OpenAPI 规范
+    verbs:
+      - get                               # 非资源 URL 只允许 get 和 post
+
+  # --- 规则 11: 对 PersistentVolumeClaims 的读写 ---
+  - apiGroups:
+      - ""                                # 核心组
+    resources:
+      - persistentvolumeclaims
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # --- 规则 12: 对 Events 的只读访问 ---
+  - apiGroups:
+      - ""                                # 核心组
+    resources:
+      - events
+    verbs:
+      - get
+      - list
+      - watch
+
+  # --- 规则 13: 对 ServiceAccounts 的只读访问 ---
+  - apiGroups:
+      - ""                                # 核心组
+    resources:
+      - serviceaccounts
+    verbs:
+      - get
+      - list
+      - watch
+
+  # --- 规则 14: 对 Nodes 的只读访问（通常需要 ClusterRole） ---
+  - apiGroups:
+      - ""                                # 核心组
+    resources:
+      - nodes
+      - nodes/status
+      - nodes/proxy
+      - nodes/metrics
+      - nodes/spec
+      - nodes/stats
+    verbs:
+      - get
+      - list
+      - watch
+
+  # --- 规则 15: 对 Namespaces 的只读访问（通常需要 ClusterRole） ---
+  - apiGroups:
+      - ""                                # 核心组
+    resources:
+      - namespaces
+      - namespaces/status
+      - namespaces/finalize
+    verbs:
+      - get
+      - list
+      - watch
+
+  # --- 规则 16: 对 RBAC 资源的只读访问（通常需要 ClusterRole） ---
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
+    verbs:
+      - get
+      - list
+      - watch

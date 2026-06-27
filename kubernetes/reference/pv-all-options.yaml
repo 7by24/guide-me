@@ -1,0 +1,239 @@
+apiVersion: v1                          # API 版本，PV 属于核心组 v1
+kind: PersistentVolume                  # 资源类型标识，必须为 PersistentVolume
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-pv                      # PV 名称，集群范围内必须唯一
+  labels:                               # 标签集合
+    type: local
+    environment: production
+  annotations:                            # 注解集合
+    pv.kubernetes.io/bound-by-controller: "yes"
+    description: "Static persistent volume"
+
+# ==========================================
+# spec: PV 的核心规约
+# ==========================================
+spec:
+  # --- 容量 ---
+  capacity:
+    storage: 10Gi                       # 存储容量
+
+  # --- 访问模式 ---
+  accessModes:                          # 支持的访问模式
+    - ReadWriteOnce                      # 单节点读写
+    # - ReadOnlyMany                     # 多节点只读
+    # - ReadWriteMany                    # 多节点读写
+
+  # --- 回收策略 ---
+  persistentVolumeReclaimPolicy: Retain   # 回收策略：
+                                          # Retain（保留，PV 释放后数据保留，需手动回收）
+                                          # Delete（删除，PV 释放后自动删除底层存储，需 StorageClass 支持）
+                                          # Recycle（回收，已弃用，清空数据后重新可用）
+
+  # --- 卷模式 ---
+  volumeMode: Filesystem                # 卷模式：Filesystem(默认)/Block
+
+  # --- 存储类 ---
+  storageClassName: standard            # 存储类名称，用于动态 provision 的匹配
+                                        # 设为 "" 表示不属于任何 StorageClass
+
+  # --- 节点亲和性（本地存储必需） ---
+  nodeAffinity:                         # 节点亲和性，限制 PV 只能被特定节点使用
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - node-1
+
+  # --- 挂载选项 ---
+  mountOptions:                         # 文件系统挂载选项
+    - hard
+    - nfsvers=4.1
+
+  # --- 卷来源（多种类型，互斥，只选一个） ---
+  # --- NFS 卷 ---
+  nfs:
+    server: nfs-server.example.com      # NFS 服务器地址
+    path: /exports/data                 # NFS 导出路径
+    readOnly: false                     # 是否只读
+
+  # --- HostPath 卷（单节点测试用，不推荐生产） ---
+  # hostPath:
+  #   path: /data/pv                    # 宿主机路径
+  #   type: DirectoryOrCreate           # 路径类型
+
+  # --- AWS EBS 卷 ---
+  # awsElasticBlockStore:
+  #   volumeID: vol-123456              # EBS 卷 ID
+  #   fsType: ext4                      # 文件系统类型
+  #   partition: 0                      # 分区号
+  #   readOnly: false
+
+  # --- GCE PD 卷 ---
+  # gcePersistentDisk:
+  #   pdName: my-data-disk              # PD 名称
+  #   fsType: ext4
+  #   partition: 0
+  #   readOnly: false
+
+  # --- Azure Disk 卷 ---
+  # azureDisk:
+  #   diskName: mydisk                  # 磁盘名称
+  #   diskURI: https://myaccount.blob.core.windows.net/vhds/mydisk.vhd
+  #   cachingMode: ReadWrite            # 缓存模式
+  #   fsType: ext4
+  #   readOnly: false
+  #   kind: Shared                      # 磁盘类型：Shared/Dedicated/Managed
+
+  # --- Azure File 卷 ---
+  # azureFile:
+  #   secretName: azure-secret          # 包含存储账户密钥的 Secret
+  #   shareName: myshare                # 文件共享名称
+  #   readOnly: false
+
+  # --- CephFS 卷 ---
+  # cephfs:
+  #   monitors:                         # Ceph monitor 地址列表
+  #     - 10.16.154.78:6789
+  #   user: admin                       # Ceph 用户名
+  #   secretFile: /etc/ceph/admin.secret  # 密钥文件路径
+  #   secretRef:                        # 或引用 Secret
+  #     name: ceph-secret
+  #   readOnly: false
+
+  # --- Cinder 卷（OpenStack） ---
+  # cinder:
+  #   volumeID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  #   fsType: ext4
+  #   readOnly: false
+
+  # --- FC（Fibre Channel）卷 ---
+  # fc:
+  #   targetWWNs:                       # 目标 WWN 列表
+  #     - "wwn1"
+  #   lun: 0                            # LUN 号
+  #   fsType: ext4
+  #   readOnly: false
+  #   wwids:                            # 或按 WWID
+  #     - "wwid1"
+
+  # --- FlexVolume（已弃用） ---
+  # flexVolume:
+  #   driver: example/lvm
+  #   fsType: ext4
+  #   secretRef:
+  #     name: flex-secret
+  #   options:
+  #     volumeID: vol1
+
+  # --- Flocker（已弃用） ---
+  # flocker:
+  #   datasetName: my-dataset
+
+  # --- GlusterFS 卷 ---
+  # glusterfs:
+  #   endpoints: glusterfs-cluster      # Endpoints 名称
+  #   path: kube_vol                    # GlusterFS 卷路径
+  #   readOnly: false
+
+  # --- iSCSI 卷 ---
+  # iscsi:
+  #   targetPortal: 10.0.0.1:3260       # iSCSI 目标门户
+  #   iqn: iqn.2000-01.com.test:storage.disk1  # iSCSI Qualified Name
+  #   lun: 0                            # LUN 号
+  #   fsType: ext4
+  #   readOnly: false
+  #   initiatorName: iqn.1993-08.org.debian:01:client  # 发起者名称
+
+  # --- Quobyte 卷 ---
+  # quobyte:
+  #   registry: registry:7861           # 注册表地址
+  #   volume: myVolume                  # 卷名称
+  #   readOnly: false
+  #   user: root
+  #   group: root
+
+  # --- RBD（Ceph Block Device）卷 ---
+  # rbd:
+  #   monitors:                         # Ceph monitor 列表
+  #     - 10.16.154.78:6789
+  #   image: kube                       # RBD 镜像名称
+  #   pool: kube                        # Ceph 池名称
+  #   user: admin
+  #   secretRef:
+  #     name: ceph-secret
+  #   fsType: ext4
+  #   readOnly: false
+
+  # --- VsphereVolume 卷 ---
+  # vsphereVolume:
+  #   volumePath: "[datastore1] volumes/myDisk"
+  #   fsType: vmfs
+
+  # --- Local 卷 ---
+  # local:
+  #   path: /mnt/disks/ssd1             # 本地路径
+  #   fsType: ext4
+
+  # --- CSI 卷 ---
+  # csi:
+  #   driver: my-csi-driver             # CSI 驱动名称
+  #   volumeHandle: my-volume-id        # 卷句柄
+  #   fsType: ext4
+  #   volumeAttributes:                 # 卷属性
+  #     key: value
+  #   nodePublishSecretRef:             # 节点发布 Secret
+  #     name: my-secret
+  #     namespace: default
+  #   controllerExpandSecretRef:        # 控制器扩容 Secret
+  #     name: expand-secret
+  #     namespace: default
+  #   controllerPublishSecretRef:       # 控制器发布 Secret
+  #     name: publish-secret
+  #     namespace: default
+
+  # ---  PhotonPersistentDisk（Photon 平台） ---
+  # photonPersistentDisk:
+  #   pdID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  #   fsType: ext4
+
+  # --- PortworxVolume 卷 ---
+  # portworxVolume:
+  #   volumeID: my-volume-id
+  #   fsType: ext4
+  #   readOnly: false
+
+  # --- ScaleIO 卷（已弃用） ---
+  # scaleIO:
+  #   gateway: sio://gateway.example.com
+  #   system: sio
+  #   protectionDomain: default
+  #   storagePool: default
+  #   volumeName: my-volume
+  #   secretRef:
+  #     name: sio-secret
+  #   fsType: xfs
+  #   readOnly: false
+
+  # --- StorageOS 卷 ---
+  # storageos:
+  #   volumeName: my-volume             # StorageOS 卷名称
+  #   volumeNamespace: default            # 卷命名空间
+  #   fsType: ext4
+  #   readOnly: false
+  #   secretRef:
+  #     name: storageos-secret
+  #     namespace: default
+
+# ==========================================
+# status: 当前状态（由系统维护）
+# ==========================================
+status:
+  phase: Available                      # 阶段：Available(可用)/Bound(已绑定)/Released(已释放)/Failed(失败)
+  reason: ""
+  message: ""

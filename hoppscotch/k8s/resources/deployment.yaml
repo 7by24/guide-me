@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hopin-deployment
+  namespace: hopin
+  labels:
+    app: hopin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hopin
+  template:
+    metadata:
+      labels:
+        app: hopin
+    spec:
+      containers:
+        - name: hopin
+          image: hoppscotch/hoppscotch:2026.5.0
+          imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+            requests:
+              memory: "1Gi"
+              cpu: "1000m"
+          ports:
+            - containerPort: 80
+          command:
+            - sh
+            - -c
+            - pnpm exec prisma migrate deploy && node /usr/src/app/aio_run.mjs
+          envFrom:
+            - configMapRef:
+                name: hopin-config
+
+            - secretRef:
+                name: hopin-secret
+
+          volumeMounts:
+            - name: ssl-certs
+              mountPath: "/certs/ca.crt"
+              subPath: ca.crt
+              readOnly: true
+            - name: ssl-certs
+              mountPath: "/certs/client.crt"
+              subPath: client.crt
+              readOnly: true
+            - name: ssl-certs
+              mountPath: "/certs/client.key"
+              subPath: client.key
+              readOnly: true
+
+        - name: hopin-proxy
+          image: hoppscotch/proxyscotch:v0.1.4
+          imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+          ports:
+            - containerPort: 9159
+      volumes:
+        - name: ssl-certs
+          secret:
+            secretName: hopin-ssl
+            defaultMode: 0400

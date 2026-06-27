@@ -1,0 +1,111 @@
+apiVersion: networking.k8s.io/v1       # API 版本，Ingress 属于 networking.k8s.io 组 v1
+kind: Ingress                          # 资源类型标识，必须为 Ingress
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-ingress                # Ingress 名称，同一命名空间内必须唯一
+  namespace: default                   # 所属命名空间
+  labels:                              # 标签集合
+    app: example
+    tier: frontend
+  annotations:                         # 注解集合，Ingress 控制器常用注解配置
+    nginx.ingress.kubernetes.io/rewrite-target: /          # Nginx 重写目标
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"       # 强制 HTTPS 跳转
+    nginx.ingress.kubernetes.io/rate-limit: "100"          # 限流配置
+    kubernetes.io/ingress.class: "nginx"                   # Ingress 类（已弃用，建议使用 spec.ingressClassName）
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"     # cert-manager 自动签发证书
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"       # CORS 配置
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"     # 请求体大小限制
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"  # 代理读取超时
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"  # 代理发送超时
+    nginx.ingress.kubernetes.io/affinity: "cookie"         # 会话亲和性
+    nginx.ingress.kubernetes.io/session-cookie-name: "route"
+  generateName: ingress-               # 名称前缀（与 name 互斥）
+  finalizers:                          # 终结器列表
+    - networking.k8s.io/ingress-finalizer
+
+# ==========================================
+# spec: Ingress 的核心规约
+# ==========================================
+spec:
+  # --- Ingress 类 ---
+  ingressClassName: nginx              # Ingress 控制器类名称，指定使用哪个 Ingress 控制器实现
+
+  # --- 默认后端 ---
+  defaultBackend:                        # 默认后端，当没有规则匹配时使用
+    service:
+      name: default-service            # 后端 Service 名称
+      port:
+        number: 80                     # Service 端口（数字形式）
+        # name: http                   # 或按名称引用端口
+    # resource:                          # 或指向资源（v1.19+）
+    #   apiGroup: k8s.example.com
+    #   kind: StorageBucket
+    #   name: static-assets
+
+  # --- TLS 配置 ---
+  tls:                                 # TLS 证书配置列表
+    - hosts:                           # 证书适用的主机名列表
+        - example.com
+        - www.example.com
+      secretName: example-tls-secret   # 包含 TLS 证书和密钥的 Secret 名称
+      # Secret 必须包含 tls.crt 和 tls.key
+    - hosts:
+        - api.example.com
+      secretName: api-tls-secret
+
+  # --- 路由规则 ---
+  rules:                               # 主机路由规则列表
+    - host: example.com                # 主机名（可选，不指定则匹配所有主机）
+      http:
+        paths:                         # 路径列表
+          - path: /                    # URL 路径
+            pathType: Prefix           # 路径匹配类型：
+                                       # Exact（精确匹配）
+                                       # Prefix（前缀匹配，区分大小写）
+                                       # ImplementationSpecific（由控制器决定）
+            backend:                   # 后端服务
+              service:
+                name: web-service      # 后端 Service 名称
+                port:
+                  number: 80           # Service 端口
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-service
+                port:
+                  name: http           # 按名称引用端口
+          - path: /static
+            pathType: Prefix
+            backend:
+              service:
+                name: static-service
+                port:
+                  number: 8080
+
+    - host: api.example.com            # 另一个主机规则
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 80
+
+# ==========================================
+# status: 当前状态（由系统维护）
+# ==========================================
+status:
+  loadBalancer:                        # 负载均衡器状态
+    ingress:
+      - ip: 203.0.113.10
+        hostname: lb.example.com
+  conditions:                          # 状态条件
+    - type: IngressClassReady
+      status: "True"
+      lastTransitionTime: "2024-01-01T00:00:00Z"

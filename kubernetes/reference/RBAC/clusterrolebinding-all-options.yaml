@@ -1,0 +1,65 @@
+apiVersion: rbac.authorization.k8s.io/v1  # API 版本，RBAC 属于 rbac.authorization.k8s.io 组 v1
+kind: ClusterRoleBinding                    # 资源类型标识，必须为 ClusterRoleBinding（集群级绑定）
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-clusterrolebinding            # ClusterRoleBinding 名称，集群范围内必须唯一
+  # namespace: 无                           # ClusterRoleBinding 是集群级资源，无 namespace 字段
+  labels:                                     # 标签集合
+    app: example
+    type: rbac
+  annotations:                                # 注解集合
+    description: "Bind clusterrole to user/serviceaccount cluster-wide"
+  generateName: clusterrolebinding-           # 名称前缀（与 name 互斥）
+
+# ==========================================
+# roleRef: 引用的角色（核心字段，不可变）
+# ==========================================
+roleRef:
+  apiGroup: rbac.authorization.k8s.io          # API 组，必须为 rbac.authorization.k8s.io
+  kind: ClusterRole                           # 角色类型：必须为 ClusterRole
+  name: example-clusterrole                     # 引用的 ClusterRole 名称
+
+# ==========================================
+# subjects: 被授权的主体列表（核心字段）
+# ==========================================
+subjects:
+  # --- 类型 1: ServiceAccount（跨命名空间绑定） ---
+  - kind: ServiceAccount                      # 主体类型：ServiceAccount
+    name: example-sa                          # ServiceAccount 名称
+    namespace: default                        # ServiceAccount 所在命名空间（必须指定）
+                                              # 注意：ClusterRoleBinding 中的 SA 可以来自任何命名空间
+
+  # --- 类型 2: ServiceAccount（另一个命名空间） ---
+  - kind: ServiceAccount
+    name: monitoring-sa
+    namespace: monitoring
+
+  # --- 类型 3: User ---
+  - kind: User                                # 主体类型：User
+    name: admin@example.com                     # 用户名
+    apiGroup: rbac.authorization.k8s.io          # 用户的 API 组
+
+  # --- 类型 4: Group ---
+  - kind: Group                               # 主体类型：Group
+    name: cluster-admins                        # 用户组名称
+    apiGroup: rbac.authorization.k8s.io
+
+  # --- 类型 5: 系统内置主体 ---
+  - kind: User
+    name: system:kube-controller-manager          # 内置：kube-controller-manager
+    apiGroup: rbac.authorization.k8s.io
+  - kind: User
+    name: system:kube-scheduler                   # 内置：kube-scheduler
+    apiGroup: rbac.authorization.k8s.io
+  - kind: User
+    name: system:kube-proxy                       # 内置：kube-proxy
+    apiGroup: rbac.authorization.k8s.io
+  - kind: Group
+    name: system:masters                          # 内置：超级管理员组
+    apiGroup: rbac.authorization.k8s.io
+  - kind: Group
+    name: system:nodes                              # 内置：所有节点
+    apiGroup: rbac.authorization.k8s.io

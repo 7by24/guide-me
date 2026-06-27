@@ -1,0 +1,26 @@
+services:
+  redis:
+    image: redis:8.6.3
+    restart: unless-stopped
+    container_name: redis
+    hostname: redis
+    ports:
+      - "IP:6379:6379"
+    volumes:
+      - ./data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    
+    networks:
+      - default
+
+networks:
+  default:
+    name: redis_network
+    driver: bridge

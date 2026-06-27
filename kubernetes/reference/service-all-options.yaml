@@ -1,0 +1,123 @@
+apiVersion: v1                          # API 版本，Service 属于核心组 v1
+kind: Service                          # 资源类型标识，必须为 Service
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-service                # Service 名称，同一命名空间内必须唯一，需符合 DNS 子域规则
+  namespace: default                   # 所属命名空间，默认 default，用于资源隔离
+  labels:                              # 标签集合，用于标识和选择此 Service
+    app: example
+    tier: frontend
+  annotations:                         # 注解集合，非结构化元数据，常用于工具或外部系统使用
+    prometheus.io/scrape: "true"       # Prometheus 监控注解示例
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"  # 云厂商负载均衡器注解
+  generateName: example-               # 名称前缀，服务端自动生成唯一后缀（与 name 互斥）
+  finalizers:                          # 终结器列表，资源删除前需全部清空
+    - service.kubernetes.io/load-balancer-cleanup
+  ownerReferences:                     # 所有者引用，用于级联垃圾回收
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: example-deployment
+      uid: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+      controller: true
+      blockOwnerDeletion: true
+
+# ==========================================
+# spec: Service 的核心规约
+# ==========================================
+spec:
+  # --- 选择算符 ---
+  selector:                            # Pod 标签选择算符，决定哪些 Pod 接收此 Service 的流量
+    app: example                       # 键值对形式，匹配 Pod 的 labels
+    tier: frontend
+
+  # --- Service 类型 ---
+  type: ClusterIP                      # Service 类型：ClusterIP(默认)/NodePort/LoadBalancer/ExternalName
+
+  # --- 端口配置 ---
+  ports:                               # Service 暴露的端口列表
+    - name: http                       # 端口名称，用于标识和引用
+      port: 80                         # Service 暴露的端口（集群内访问）
+      targetPort: 8080                 # 目标 Pod 的容器端口（可以是名称或数字）
+      protocol: TCP                    # 协议：TCP(默认)/UDP/SCTP
+      appProtocol: http                # 应用层协议标识（v1.20+），用于服务网格等场景
+      nodePort: 30080                  # 节点端口（仅 NodePort/LoadBalancer 类型有效），范围 30000-32767
+    - name: https
+      port: 443
+      targetPort: 8443
+      protocol: TCP
+      # nodePort: 30443                # 不指定时由系统自动分配
+
+  # --- ClusterIP 配置 ---
+  clusterIP: 10.96.0.1                 # 集群内部虚拟 IP，通常由系统自动分配。可指定为 "None" 创建 Headless Service
+  clusterIPs:                          # 双栈 IP 地址列表（v1.20+）
+    - 10.96.0.1
+    - 2001:db8::1
+
+  # --- IP 族配置 ---
+  ipFamilyPolicy: PreferDualStack      # IP 族策略：SingleStack/PreferDualStack/RequireDualStack
+  ipFamilies:                          # 指定 IP 族优先级
+    - IPv4
+    - IPv6
+
+  # --- 会话亲和性 ---
+  sessionAffinity: None                # 会话亲和性：None(默认，轮询)/ClientIP（同一客户端 IP 始终路由到同一 Pod）
+  sessionAffinityConfig:               # 会话亲和性配置（仅 sessionAffinity=ClientIP 时有效）
+    clientIP:
+      timeoutSeconds: 10800            # 会话保持时间，默认 10800 秒（3 小时）
+
+  # --- 发布模式（外部流量策略） ---
+  externalTrafficPolicy: Cluster       # 外部流量策略：Cluster(默认，集群级负载均衡)/Local（仅本地节点 Pod）
+                                       # Local 模式可保留客户端源 IP，但可能导致流量不均衡
+
+  # --- 内部流量策略 ---
+  internalTrafficPolicy: Cluster       # 内部流量策略：Cluster(默认)/Local（v1.22+）
+                                       # Local 模式限制流量仅路由到同一节点的 Pod
+
+  # --- 健康检查节点端口 ---
+  healthCheckNodePort: 30000           # 健康检查节点端口（仅 externalTrafficPolicy=Local 时），默认自动分配
+
+  # --- 外部 IP ---
+  externalIPs:                         # 外部 IP 地址列表，集群外部可通过这些 IP 访问 Service
+    - 203.0.113.1
+    - 203.0.113.2
+
+  # --- 负载均衡器配置 ---
+  loadBalancerIP: 203.0.113.10         # 负载均衡器 IP（部分云厂商支持指定）
+  loadBalancerSourceRanges:            # 负载均衡器源 IP 白名单
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+  loadBalancerClass: example-lb        # 负载均衡器类（v1.22+），用于选择特定的负载均衡器实现
+
+  # --- 外部名称（仅 ExternalName 类型） ---
+  externalName: my.database.example.com  # 外部 DNS 名称，创建 CNAME 记录指向此域名
+
+  # --- 拓扑感知路由 ---
+  topologyKeys:                        # 拓扑感知路由键列表（已弃用，建议使用 topologySpreadConstraints）
+    - "kubernetes.io/hostname"
+    - "topology.kubernetes.io/zone"
+    - "*"
+
+  # --- 分配负载均衡器节点端口 ---
+  allocateLoadBalancerNodePorts: true  # 是否为 LoadBalancer Service 分配 NodePort（v1.22+），默认 true
+
+# ==========================================
+# status: 当前状态（由系统维护，通常不手动设置）
+# ==========================================
+status:
+  loadBalancer:                        # 负载均衡器状态
+    ingress:                           # 入口地址列表
+      - ip: 203.0.113.10               # 负载均衡器 IP
+        hostname: lb.example.com       # 负载均衡器主机名
+        ports:
+          - port: 80
+            protocol: TCP
+            error: "Some error"        # 错误信息（如果有）
+  conditions:                          # 状态条件
+    - type: LoadBalancerReady
+      status: "True"
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+      reason: "LoadBalancerProvisioned"
+      message: "Load balancer is provisioned"

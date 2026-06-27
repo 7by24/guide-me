@@ -1,0 +1,82 @@
+# pgadmin-values.yaml
+image:
+  registry: docker.io
+  repository: dpage/pgadmin4
+  tag: "9.16" # 建议使用固定版本，避免 latest 带来的不可预期更新
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+env:
+  email: ""
+  password: ""
+  variables: []
+
+extraVolumes:
+  - name: ssl-certs
+    secret:
+      secretName: pgadmin-ssl
+      defaultMode: 0400
+  - name: tmp
+    emptyDir: {}
+
+extraVolumeMounts:
+  - name: ssl-certs
+    mountPath: /etc/pgadmin/ssl
+    readOnly: true
+  - name: tmp
+    mountPath: /tmp
+
+envFrom:
+  - secretRef:
+      name: pgadmin-env
+  - configMapRef:
+      name: pgadmin-config
+
+resources:
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+
+podSecurityContext:
+  fsGroup: 5050 # pgadmin 用户组
+
+securityContext:
+  runAsUser: 5050 # pgadmin 用户
+  runAsGroup: 5050
+  runAsNonRoot: true
+
+persistentVolume:
+  enabled: true
+  existingClaim: "pgadmin-pvc"
+  # size: 5Gi
+
+networkPolicy:
+  enabled: false
+
+livenessProbe:
+  httpGet:
+    path: /misc/ping
+    port: 80
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /misc/ping
+    port: 80
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+service:
+  type: ClusterIP
+  port: 8070
+  targetPort: 80
+  annotations: {}

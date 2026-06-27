@@ -1,0 +1,10 @@
+services:
+  xray:
+    image: ghcr.io/xtls/xray-core:latest
+    restart: unless-stopped
+    command: [ "run", "-c", "/usr/local/etc/xray/config.json" ]
+    ports:
+      - "443:443"
+    volumes:
+      - $PWD/:/usr/local/etc/xray
+    container_name: xray

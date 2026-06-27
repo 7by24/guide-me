@@ -1,0 +1,20 @@
+services:
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - /var/log/nginx/:/var/log/nginx
+      - /acme/data/domain:/etc/letsencrypt/domain:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./conf.d/:/etc/nginx/conf.d
+    container_name: nginx
+    networks:
+      - default
+
+networks:
+  default:
+    name: nginx_network
+    driver: bridge

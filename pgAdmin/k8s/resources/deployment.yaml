@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgadmin-deployment
+  namespace: pgadmin
+  labels:
+    app: pgadmin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgadmin
+  template:
+    metadata:
+      labels:
+        app: pgadmin
+    spec:
+      securityContext:
+        runAsUser: 5050 # pgadmin 用户
+        runAsGroup: 5050
+        runAsNonRoot: true
+        fsGroup: 5050 # pgadmin 用户组
+      containers:
+        - name: pgadmin
+          image: dpage/pgadmin4:9.16
+          imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+          ports:
+            - containerPort: 80
+              name: pgadmin
+          env:
+            - name: PGADMIN_DEFAULT_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: pgadmin-secret
+                  key: PGADMIN_DEFAULT_EMAIL
+
+            - name: PGADMIN_DEFAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pgadmin-secret
+                  key: PGADMIN_DEFAULT_PASSWORD
+
+            # - name: PGADMIN_CONFIG_CONFIG_DATABASE_URI
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: pgadmin-secret
+            #       key: PGADMIN_CONFIG_CONFIG_DATABASE_URI
+
+            # - name: PGADMIN_CONFIG_CONFIG_DATABASE_URI_SSL_MODE
+            # value: "verify-ca"
+
+          volumeMounts:
+            - name: ssl-certs
+              mountPath: "/certs"
+            - name: data
+              mountPath: "/var/lib/pgadmin"
+
+          livenessProbe:
+            httpGet:
+              path: /misc/ping
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /misc/ping
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pgadmin-pvc
+        - name: ssl-certs
+          secret:
+            secretName: pgadmin-ssl
+            defaultMode: 0400

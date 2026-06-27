@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: postgres
+data:
+  pg_hba.conf: |
+    local   all             all                                     scram-sha-256
+    hostssl all             all             0.0.0.0/0               scram-sha-256  clientcert=verify-ca
+    hostssl all             all             ::/0                    scram-sha-256  clientcert=verify-ca
+    hostnossl all           all             0.0.0.0/0               reject
+    hostnossl all           all             ::/0                    reject
+
+  postgresql.conf: |
+    listen_addresses = '*'
+    hba_file='/conf.d/pg_hba.conf'
+    ssl = on
+    ssl_ca_file = '/certs/ca.crt'
+    ssl_cert_file = '/certs/server.crt'
+    ssl_key_file = '/certs/server.key'
+    ssl_min_protocol_version = 'TLSv1.2'
+    logging_collector = on
+    log_directory = '/var/lib/postgresql/log'
+    log_destination = 'stderr'
+    log_filename = 'postgres.log'
+    log_rotation_age = 7d
+    log_min_messages = warning
+    log_min_error_statement = error
+    log_line_prefix = '%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+    log_checkpoints = on
+    log_connections = on
+    log_disconnections = on
+    log_lock_waits = on
+    shared_buffers = 256MB
+    work_mem = 4MB
+    effective_cache_size = 1536MB

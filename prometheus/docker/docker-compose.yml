@@ -1,0 +1,52 @@
+services:
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    restart: unless-stopped
+    container_name: node-exporter
+    hostname: node-exporter
+    network_mode: host
+    pid: host
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    command:
+      - '--path.rootfs=/host'
+    volumes:
+      - '/:/host:ro,rslave'
+  
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    restart: unless-stopped
+    container_name: cadvisor
+    hostname: cadvisor
+    ports:
+      - IP:8080:8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - default
+
+  prometheus:
+   image: prom/prometheus:latest
+   restart: unless-stopped
+   container_name: prometheus
+   hostname: prometheus
+   user:  "1001"
+   ports:
+    - IP:9090:9090
+   volumes:
+     - ./conf.d/prometheus.yml:/etc/prometheus/prometheus.yml
+     - ./data:/prometheus
+   depends_on:
+     - node-exporter
+     - cadvisor
+   networks:
+     - default
+
+
+networks:
+  default:
+   name: prometheus_network

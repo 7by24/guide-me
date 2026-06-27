@@ -1,0 +1,50 @@
+apiVersion: v1                              # API 版本，Namespace 属于核心组 v1
+kind: Namespace                           # 资源类型标识，必须为 Namespace
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-namespace                   # Namespace 名称，集群范围内必须唯一，需符合 DNS 标签规则
+  labels:                                   # 标签集合
+    app: example
+    environment: production
+    istio-injection: enabled                  # Istio 自动注入标签
+    pod-security.kubernetes.io/enforce: restricted  # Pod 安全标准：privileged/baseline/restricted
+    pod-security.kubernetes.io/audit: baseline      # 审计模式
+    pod-security.kubernetes.io/warn: restricted     # 警告模式
+  annotations:                              # 注解集合
+    description: "Production namespace for example application"
+    scheduler.alpha.kubernetes.io/defaultTolerations: '[]'  # 默认容忍度
+  generateName: ns-                         # 名称前缀（与 name 互斥，通常不用于 Namespace）
+  finalizers:                               # 终结器列表
+    - kubernetes                             # 默认终结器，防止 Namespace 被删除时仍有资源
+
+# ==========================================
+# spec: Namespace 规约（通常为空）
+# ==========================================
+spec:
+  finalizers:                               # 终结器列表（与 metadata.finalizers 等价）
+    - kubernetes
+
+# ==========================================
+# status: 当前状态（由系统维护）
+# ==========================================
+status:
+  phase: Active                             # 阶段：Active（活跃）/ Terminating（终止中）
+  conditions:                               # 状态条件
+    - type: NamespaceDeletionDiscoveryFailure
+      status: "False"
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+      reason: "ResourcesDiscovered"
+      message: "All resources successfully discovered"
+    - type: NamespaceDeletionGroupVersionParsingFailure
+      status: "False"
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+      reason: "ParsedGroupVersions"
+      message: "All legacy kube types successfully parsed"
+    - type: NamespaceDeletionContentFailure
+      status: "False"
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+      reason: "ContentDeleted"
+      message: "All content successfully deleted"

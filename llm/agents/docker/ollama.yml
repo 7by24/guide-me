@@ -1,0 +1,18 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_CONTEXT_LENGTH=64000
+    volumes:
+      - ./data:/root/.ollama
+    networks:
+      - network
+
+networks:
+  network:
+    name: agent_network
+    driver: bridge

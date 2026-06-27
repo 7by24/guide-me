@@ -1,0 +1,49 @@
+apiVersion: v1                          # API 版本，ConfigMap 属于核心组 v1
+kind: ConfigMap                        # 资源类型标识，必须为 ConfigMap
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-configmap              # ConfigMap 名称，同一命名空间内必须唯一
+  namespace: default                   # 所属命名空间，默认 default
+  labels:                              # 标签集合
+    app: example
+    type: config
+  annotations:                         # 注解集合
+    description: "Application configuration"
+  generateName: config-                # 名称前缀（与 name 互斥）
+  finalizers:                          # 终结器列表
+    - kubernetes
+  ownerReferences:                     # 所有者引用
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: example-deployment
+      uid: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+      controller: true
+      blockOwnerDeletion: true
+
+# ==========================================
+# data: 配置数据（键值对，值必须是 UTF-8 字符串）
+# ==========================================
+data:
+  app.properties: |                    # 多行字符串值，常用于配置文件
+    server.port=8080
+    server.host=0.0.0.0
+    log.level=INFO
+  database.url: "jdbc:mysql://db:3306/mydb"  # 单行字符串值
+  database.username: "appuser"
+  max.connections: "100"               # 数字也需以字符串形式存储
+  feature.flag.enabled: "true"         # 布尔值也需以字符串形式存储
+
+# ==========================================
+# binaryData: 二进制数据（键值对，值必须是 Base64 编码的字符串）
+# ==========================================
+binaryData:
+  app.bin: "SGVsbG8gV29ybGQ="          # Base64 编码的二进制数据，适用于非 UTF-8 内容
+  certificate.crt: "LS0tLS1CRUdJTi..."  # 证书等二进制文件内容
+
+# ==========================================
+# immutable: 不可变性（v1.19+）
+# ==========================================
+immutable: false                       # 是否设置为不可变。设为 true 后不可修改，提升性能和安全性

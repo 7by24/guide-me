@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hopin-config
+  namespace: hopin
+data:
+  HOPP_AIO_ALTERNATE_PORT: "80"
+  WHITELISTED_ORIGINS: https://hopin.domain.eu.org,https://hopin.domain.eu.org/backend,https://hopin.domain.eu.org/admin,http://app.hopin_domain_eu_org,app://hopin_domain_eu_org
+
+  # Base URLs
+  VITE_BASE_URL: https://hopin.domain.eu.org
+  VITE_SHORTCODE_BASE_URL: https://hopin.domain.eu.org
+  VITE_ADMIN_URL: https://hopin.domain.eu.org/admin
+
+  # Backend URLs
+  VITE_BACKEND_GQL_URL: https://hopin.domain.eu.org/backend/graphql
+  VITE_BACKEND_WS_URL: wss://hopin.domain.eu.org/backend/graphql
+  VITE_BACKEND_API_URL: https://hopin.domain.eu.org/backend/v1
+
+  # OAuth Providers
+  VITE_ALLOWED_AUTH_PROVIDERS: GITHUB
+  GITHUB_CALLBACK_URL: https://hopin.domain.eu.org/backend/v1/auth/github/callback
+  GITHUB_SCOPE: user:email
+
+  # Terms Of Service And Privacy Policy Links (Optional)
+  VITE_APP_TOS_LINK: https://docs.hoppscotch.io/support/terms
+  VITE_APP_PRIVACY_POLICY_LINK: https://docs.hoppscotch.io/support/privacy
+
+  # Set to `true` for subpath based access
+  ENABLE_SUBPATH_BASED_ACCESS: "true"

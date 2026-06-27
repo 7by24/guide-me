@@ -1,0 +1,702 @@
+apiVersion: apps/v1                    # API 版本，Deployment 属于 apps 组，v1 是当前稳定版本
+kind: Deployment                       # 资源类型标识，必须为 Deployment
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-deployment             # Deployment 名称，同一命名空间内必须唯一，需符合 DNS 子域规则
+  namespace: default                   # 所属命名空间，默认 default，用于资源隔离
+  labels:                              # 标签集合，用于标识和选择此 Deployment
+    app: example
+    tier: frontend
+  annotations:                         # 注解集合，非结构化元数据，常用于工具或外部系统使用
+    description: "Production deployment"
+    deployment.kubernetes.io/revision: "1"
+  generateName: example-               # 名称前缀，服务端自动生成唯一后缀（与 name 互斥）
+  finalizers:                          # 终结器列表，资源删除前需全部清空
+    - foregroundDeletion
+  ownerReferences:                     # 所有者引用，用于级联垃圾回收
+    - apiVersion: apps/v1
+      kind: ReplicaSet
+      name: old-rs
+      uid: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+      controller: false
+      blockOwnerDeletion: true
+
+# ==========================================
+# spec: Deployment 的核心规约
+# ==========================================
+spec:
+  # --- 副本控制 ---
+  replicas: 3                          # 期望的 Pod 副本数量，默认 1。若由 HPA 管理则不应手动设置
+
+  # --- 修订历史 ---
+  revisionHistoryLimit: 10             # 保留的旧 ReplicaSet 数量，用于回滚。默认 10，设为 0 将无法回滚
+
+  # --- 暂停控制 ---
+  paused: false                        # 是否暂停 Deployment。暂停时 Pod 模板修改不会触发新的上线
+
+  # --- 进度与就绪控制 ---
+  progressDeadlineSeconds: 600         # 部署进度超时秒数，默认 600。超时后标记 ProgressDeadlineExceeded
+  minReadySeconds: 10                  # Pod 就绪后需持续多少秒才视为可用，默认 0。防止容器刚启动就崩溃
+
+  # --- 更新策略 ---
+  strategy:
+    type: RollingUpdate                # 更新策略类型：RollingUpdate（滚动更新，默认）或 Recreate（重建）
+    rollingUpdate:                     # 滚动更新详细配置（仅当 type=RollingUpdate 时有效）
+      maxSurge: 25%                    # 更新期间可超出 replicas 的 Pod 数量/百分比（向上取整），默认 25%
+      maxUnavailable: 25%              # 更新期间允许不可用的 Pod 数量/百分比（向下取整），默认 25%
+      # 注意：maxSurge 和 maxUnavailable 不能同时为 0
+
+  # --- 选择算符（Pod 标签选择器）---
+  selector:
+    matchLabels:                       # 精确匹配标签，键值对映射
+      app: example
+      tier: frontend
+    matchExpressions:                  # 表达式匹配，提供更灵活的选择逻辑
+      - key: environment
+        operator: In                   # 操作符：In, NotIn, Exists, DoesNotExist
+        values:                        # 值列表（Exists/DoesNotExist 不需要 values）
+          - production
+          - staging
+      - key: version
+        operator: NotIn
+        values:
+          - deprecated
+
+  # ==========================================
+  # template: Pod 模板，定义创建的 Pod 规格
+  # ==========================================
+  template:
+    # --- Pod 元数据 ---
+    metadata:
+      labels:                          # Pod 标签，必须与 spec.selector 完全匹配
+        app: example
+        tier: frontend
+      annotations:                     # Pod 注解
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+      # name: pod-prefix               # 若指定，将作为 Pod 名称前缀（通常由 Deployment 自动生成）
+
+    # --- Pod 规格 ---
+    spec:
+      # ==========================================
+      # 容器配置
+      # ==========================================
+      containers:
+        - name: main-container         # 容器名称，同一 Pod 内必须唯一
+          image: nginx:1.25.3          # 容器镜像地址
+          imagePullPolicy: IfNotPresent # 镜像拉取策略：Always(总是拉取)/Never(从不拉取)/IfNotPresent(本地不存在时拉取)
+
+          # --- 启动命令 ---
+          command:                     # 覆盖容器默认启动命令
+            - nginx
+          args:                        # 传递给 command 的参数
+            - "-g"
+            - "daemon off;"
+
+          # --- 工作目录 ---
+          workingDir: /usr/share/nginx/html  # 容器启动后的工作目录
+
+          # --- 端口配置 ---
+          ports:
+            - name: http               # 端口名称，用于 Service 引用
+              containerPort: 80        # 容器暴露的端口
+              protocol: TCP            # 协议：TCP（默认）/ UDP / SCTP
+              hostPort: 0              # 映射到宿主机端口（通常不建议使用，会限制调度）
+            - name: https
+              containerPort: 443
+              protocol: TCP
+
+          # --- 环境变量 ---
+          env:                         # 环境变量列表
+            - name: ENV_NAME           # 环境变量名
+              value: "production"      # 环境变量值（直接指定）
+            - name: POD_NAME
+              valueFrom:               # 从其他资源字段获取值
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name    # 引用 Pod 名称
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName    # 引用节点名称
+            - name: SECRET_PASSWORD
+              valueFrom:
+                secretKeyRef:          # 从 Secret 获取值
+                  name: my-secret
+                  key: password
+                  optional: false      # 是否允许 Secret 不存在
+            - name: CONFIG_VALUE
+              valueFrom:
+                configMapKeyRef:       # 从 ConfigMap 获取值
+                  name: my-config
+                  key: my-key
+                  optional: false
+            - name: RESOURCE_LIMIT
+              valueFrom:
+                resourceFieldRef:      # 从资源限制获取值
+                  containerName: main-container
+                  resource: limits.memory
+                  divisor: "1Mi"       # 除数，用于转换单位
+
+          envFrom:                     # 批量从 ConfigMap/Secret 导入环境变量
+            - prefix: DB_              # 导入变量名前缀
+              configMapRef:
+                name: db-config
+                optional: false
+            - prefix: SECRET_
+              secretRef:
+                name: app-secrets
+                optional: false
+
+          # --- 资源管理 ---
+          resources:
+            requests:                  # 资源请求（调度依据，保证资源）
+              memory: "128Mi"          # 内存请求
+              cpu: "100m"              # CPU 请求（100m = 0.1 核）
+              ephemeral-storage: "1Gi" # 临时存储请求
+            limits:                    # 资源限制（硬性上限）
+              memory: "256Mi"          # 内存限制
+              cpu: "500m"              # CPU 限制
+              ephemeral-storage: "2Gi" # 临时存储限制
+            claims:                    # 动态资源声明（DRA，Kubernetes v1.26+）
+              - name: gpu
+                request: nvidia.com/gpu
+
+          # --- 存储挂载 ---
+          volumeMounts:                # 卷挂载配置
+            - name: data-volume        # 卷名称（需在 volumes 中定义）
+              mountPath: /data         # 容器内挂载路径
+              subPath: subdir          # 卷内子路径，用于共享卷时隔离数据
+              readOnly: false          # 是否只读挂载
+              mountPropagation: None   # 挂载传播：None/HostToContainer/Bidirectional
+            - name: config-volume
+              mountPath: /etc/config
+              readOnly: true
+
+          volumeDevices:               # 块设备挂载（用于原始块设备）
+            - name: block-volume
+              devicePath: /dev/xvda
+
+          # --- 健康检查 ---
+          livenessProbe:               # 存活探针，检测容器是否运行正常，失败则重启容器
+            httpGet:                   # HTTP GET 探针
+              path: /healthz
+              port: 8080
+              scheme: HTTP             # HTTP 或 HTTPS
+              httpHeaders:             # 自定义请求头
+                - name: Custom-Header
+                  value: Awesome
+            # exec:                    # 命令执行探针（与 httpGet 互斥）
+            #   command:
+            #     - cat
+            #     - /tmp/healthy
+            # tcpSocket:               # TCP 端口探针（与 httpGet 互斥）
+            #   port: 8080
+            # grpc:                    # gRPC 健康检查探针（v1.24+）
+            #   port: 8080
+            #   service: ""
+            initialDelaySeconds: 30    # 首次探测前的等待时间
+            periodSeconds: 10          # 探测周期（秒）
+            timeoutSeconds: 5          # 探测超时时间（秒）
+            successThreshold: 1        # 成功阈值，连续成功多少次视为健康
+            failureThreshold: 3        # 失败阈值，连续失败多少次视为不健康
+            terminationGracePeriodSeconds: 30  # 探针失败后的优雅终止时间（覆盖 Pod 级设置）
+
+          readinessProbe:              # 就绪探针，决定 Pod 是否接收 Service 流量
+            httpGet:
+              path: /ready
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+
+          startupProbe:                # 启动探针，保护慢启动容器，成功前其他探针不生效
+            httpGet:
+              path: /startup
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 30       # 允许较长的启动时间
+
+          # --- 生命周期钩子 ---
+          lifecycle:
+            postStart:                 # 容器启动后执行的钩子
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - echo "Container started" >> /var/log/start.log
+              # httpGet:
+              #   path: /postStart
+              #   port: 8080
+              # tcpSocket:
+              #   port: 8080
+            preStop:                   # 容器终止前执行的钩子（优雅关闭）
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - nginx -s quit
+
+          # --- 容器安全上下文 ---
+          securityContext:
+            runAsUser: 1000            # 容器运行用户 ID
+            runAsGroup: 1000           # 容器运行组 ID
+            runAsNonRoot: true         # 是否必须以非 root 用户运行
+            readOnlyRootFilesystem: true  # 根文件系统是否只读
+            allowPrivilegeEscalation: false  # 是否允许特权提升
+            privileged: false          # 是否以特权模式运行
+            capabilities:              # Linux 能力（权限）管理
+              add:                     # 添加能力
+                - NET_BIND_SERVICE
+              drop:                    # 移除能力
+                - ALL
+            seccompProfile:            # seccomp 配置文件
+              type: RuntimeDefault     # RuntimeDefault / Localhost / Unconfined
+              # localhostProfile: my-profile.json  # type=Localhost 时指定
+            appArmorProfile:           # AppArmor 配置文件（v1.30+）
+              type: RuntimeDefault
+              # localhostProfile: my-profile
+            seLinuxOptions:            # SELinux 选项
+              level: "s0:c123,c456"
+              role: "system_r"
+              type: "spc_t"
+              user: "system_u"
+
+          # --- 标准输入/输出 ---
+          stdin: false                 # 是否分配标准输入缓冲区
+          stdinOnce: true              # 是否只在容器启动时打开 stdin
+          tty: false                   # 是否分配 TTY（终端）
+
+          # --- 终止消息 ---
+          terminationMessagePath: /dev/termination-log   # 终止消息写入路径
+          terminationMessagePolicy: File                 # 终止消息策略：File / FallbackToLogsOnError
+
+          # --- 重启策略（容器级，通常不设置，使用 Pod 级）---
+          # restartPolicy 在 Pod 级设置
+
+      # --- 初始化容器 ---
+      initContainers:                  # 在主容器启动前按顺序执行的容器
+        - name: init-myservice
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - "until nslookup myservice; do sleep 2; done"
+          resources:
+            limits:
+              memory: "64Mi"
+              cpu: "50m"
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+      # ==========================================
+      # 镜像拉取认证
+      # ==========================================
+      imagePullSecrets:                # 拉取私有镜像仓库的 Secret 列表
+        - name: regcred
+
+      # ==========================================
+      # 服务账户与身份
+      # ==========================================
+      serviceAccountName: app-sa       # 服务账户名称，用于 Pod 访问 API Server
+      automountServiceAccountToken: true  # 是否自动挂载 ServiceAccount Token
+
+      # ==========================================
+      # 网络配置
+      # ==========================================
+      hostname: custom-hostname        # Pod 主机名
+      subdomain: backend               # 子域名，配合 Headless Service 生成 FQDN
+      dnsPolicy: ClusterFirst          # DNS 策略：ClusterFirst / ClusterFirstWithHostNet / Default / None
+      dnsConfig:                       # 自定义 DNS 配置（dnsPolicy=None 时必需）
+        nameservers:                   # DNS 服务器列表
+          - 8.8.8.8
+          - 8.8.4.4
+        searches:                      # DNS 搜索域
+          - ns1.svc.cluster.local
+          - my.dns.search.suffix
+        options:                       # DNS 选项
+          - name: ndots
+            value: "2"
+          - name: edns0
+      hostAliases:                     # 自定义 /etc/hosts 条目
+        - ip: "127.0.0.1"
+          hostnames:
+            - "foo.local"
+            - "bar.local"
+        - ip: "10.1.2.3"
+          hostnames:
+            - "foo.remote"
+      hostNetwork: false               # 是否使用宿主机网络命名空间
+      hostPID: false                   # 是否共享宿主机 PID 命名空间
+      hostIPC: false                   # 是否共享宿主机 IPC 命名空间
+      hostUsers: false                 # 是否共享宿主机用户命名空间（v1.30+ Alpha）
+
+      # ==========================================
+      # 调度与亲和性
+      # ==========================================
+      nodeSelector:                    # 节点选择器，Pod 只能调度到匹配标签的节点
+        disktype: ssd
+        kubernetes.io/os: linux
+
+      nodeName: node-1                 # 强制指定调度到某个节点（通常不建议，会丧失调度灵活性）
+
+      affinity:                        # 亲和性规则
+        nodeAffinity:                  # 节点亲和性
+          requiredDuringSchedulingIgnoredDuringExecution:  # 硬约束（必须满足）
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/e2e-az-name
+                    operator: In
+                    values:
+                      - e2e-az1
+                      - e2e-az2
+              - matchFields:           # 按节点字段匹配
+                  - key: metadata.name
+                    operator: In
+                    values:
+                      - node-1
+          preferredDuringSchedulingIgnoredDuringExecution:  # 软约束（尽量满足）
+            - weight: 1                # 权重 1-100
+              preference:
+                matchExpressions:
+                  - key: another-node-label-key
+                    operator: In
+                    values:
+                      - another-node-label-value
+
+        podAffinity:                   # Pod 亲和性（与指定 Pod 调度到同一拓扑域）
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: security
+                    operator: In
+                    values:
+                      - S1
+              topologyKey: topology.kubernetes.io/zone
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: backend
+                topologyKey: kubernetes.io/hostname
+
+        podAntiAffinity:               # Pod 反亲和性（避免与指定 Pod 调度到同一拓扑域）
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: example
+              topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - example
+                topologyKey: topology.kubernetes.io/zone
+
+      tolerations:                     # 容忍度，允许 Pod 调度到带对应污点的节点
+        - key: "dedicated"             # 污点键，空字符串匹配所有
+          operator: "Equal"            # 操作符：Equal / Exists
+          value: "web"                 # 污点值（operator=Exists 时不需要）
+          effect: "NoSchedule"         # 污点效果：NoSchedule / PreferNoSchedule / NoExecute
+          tolerationSeconds: 3600      # 容忍持续时间（仅 NoExecute 有效）
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 300
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 300
+
+      topologySpreadConstraints:       # 拓扑分布约束（跨故障域分散 Pod）
+        - maxSkew: 1                   # 不同拓扑域间 Pod 数量最大差异
+          topologyKey: topology.kubernetes.io/zone  # 拓扑键
+          whenUnsatisfiable: DoNotSchedule  # 不满足时处理：DoNotSchedule / ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: example
+          minDomains: 2                # 最小拓扑域数量（v1.27+ Beta）
+          nodeAffinityPolicy: Honor    # 节点亲和性策略：Honor / Ignore（v1.26+）
+          nodeTaintsPolicy: Honor      # 节点污点策略：Honor / Ignore（v1.26+）
+
+      schedulerName: default-scheduler  # 调度器名称，使用自定义调度器时指定
+      priorityClassName: high-priority  # 优先级类名称
+      priority: 1000000                # 优先级数值（0-1000000000）
+      preemptionPolicy: PreemptLowerPriority  # 抢占策略：PreemptLowerPriority / Never
+
+      # ==========================================
+      # 存储配置
+      # ==========================================
+      volumes:                         # 卷定义列表，供容器挂载使用
+        - name: data-volume
+          emptyDir:                    # 临时空目录卷
+            medium: ""                 # 存储介质：空字符串（默认磁盘）/ Memory（tmpfs）
+            sizeLimit: 1Gi             # 大小限制
+        - name: config-volume
+          configMap:                   # ConfigMap 卷
+            name: my-config
+            defaultMode: 0644          # 默认文件权限
+            optional: false            # 是否允许 ConfigMap 不存在
+            items:                     # 选择性挂载特定键
+              - key: app.properties
+                path: app.properties
+                mode: 0644
+        - name: secret-volume
+          secret:                      # Secret 卷
+            secretName: my-secret
+            defaultMode: 0400
+            optional: false
+        - name: hostpath-volume
+          hostPath:                    # 宿主机路径卷
+            path: /data                # 宿主机路径
+            type: DirectoryOrCreate    # 路径类型：Directory/DirectoryOrCreate/File/FileOrCreate/Socket/CharDevice/BlockDevice
+        - name: pvc-volume
+          persistentVolumeClaim:       # PVC 卷
+            claimName: my-pvc
+            readOnly: false
+        - name: projected-volume
+          projected:                   # 投射卷，将多个源投射到同一目录
+            sources:
+              - secret:
+                  name: my-secret
+                  items:
+                    - key: username
+                      path: my-group/my-username
+              - downwardAPI:
+                  items:
+                    - path: "labels"
+                      fieldRef:
+                        fieldPath: metadata.labels
+                    - path: "cpu_limit"
+                      resourceFieldRef:
+                        containerName: main-container
+                        resource: limits.cpu
+              - configMap:
+                  name: my-config
+                  items:
+                    - key: app.conf
+                      path: app.conf
+            defaultMode: 0644
+        - name: downwardapi-volume
+          downwardAPI:                 # Downward API 卷
+            items:
+              - path: "podname"
+                fieldRef:
+                  fieldPath: metadata.name
+              - path: "podnamespace"
+                fieldRef:
+                  fieldPath: metadata.namespace
+        - name: csi-volume
+          csi:                         # CSI 卷
+            driver: my-csi-driver
+            volumeHandle: my-volume-id
+            readOnly: false
+            fsType: ext4
+            volumeAttributes:
+              key: value
+            nodePublishSecretRef:
+              name: my-secret
+        - name: nfs-volume
+          nfs:                         # NFS 卷
+            server: nfs-server.example.com
+            path: /exports/data
+            readOnly: false
+        - name: iscsi-volume
+          iscsi:                       # iSCSI 卷
+            targetPortal: 10.0.0.1:3260
+            iqn: iqn.2000-01.com.test:storage.disk1
+            lun: 0
+            fsType: ext4
+            readOnly: false
+        - name: fc-volume
+          fc:                          # Fibre Channel 卷
+            targetWWNs:
+              - "wwn1"
+            lun: 0
+            fsType: ext4
+            readOnly: false
+        - name: cephfs-volume
+          cephfs:                      # CephFS 卷
+            monitors:
+              - 10.16.154.78:6789
+            user: admin
+            secretFile: /etc/ceph/admin.secret
+            secretRef:
+              name: ceph-secret
+            readOnly: false
+        - name: glusterfs-volume
+          glusterfs:                   # GlusterFS 卷
+            endpoints: glusterfs-cluster
+            path: kube_vol
+            readOnly: false
+        - name: rbd-volume
+          rbd:                         # RBD 卷
+            monitors:
+              - 10.16.154.78:6789
+            image: kube
+            pool: kube
+            user: admin
+            secretRef:
+              name: ceph-secret
+            fsType: ext4
+            readOnly: false
+        - name: azurefile-volume
+          azureFile:                   # Azure File 卷
+            secretName: azure-secret
+            shareName: myshare
+            readOnly: false
+        - name: azuredisk-volume
+          azureDisk:                   # Azure Disk 卷
+            diskName: mydisk
+            diskURI: https://myaccount.blob.core.windows.net/vhds/mydisk.vhd
+            cachingMode: ReadWrite
+            fsType: ext4
+            readOnly: false
+            kind: Shared
+        - name: aws-ebs-volume
+          awsElasticBlockStore:        # AWS EBS 卷
+            volumeID: vol-123456
+            fsType: ext4
+            partition: 0
+            readOnly: false
+        - name: gce-pd-volume
+          gcePersistentDisk:           # GCE PD 卷
+            pdName: my-data-disk
+            fsType: ext4
+            partition: 0
+            readOnly: false
+        - name: vsphere-volume
+          vsphereVolume:               # vSphere 卷
+            volumePath: "[datastore1] volumes/myDisk"
+            fsType: vmfs
+        - name: portworx-volume
+          portworxVolume:              # Portworx 卷
+            volumeID: my-volume-id
+            fsType: ext4
+            readOnly: false
+        - name: local-volume
+          local:                       # 本地存储卷
+            path: /mnt/disks/ssd1
+        - name: ephemeral-volume
+          ephemeral:                   # 通用临时卷（v1.21+）
+            volumeClaimTemplate:
+              metadata:
+                labels:
+                  type: my-ephemeral-volume
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                storageClassName: standard
+                resources:
+                  requests:
+                    storage: 1Gi
+
+      # ==========================================
+      # 重启与终止
+      # ==========================================
+      restartPolicy: Always            # 重启策略，Deployment 中**只允许 Always**
+      terminationGracePeriodSeconds: 30  # 优雅终止等待时间，默认 30 秒
+      activeDeadlineSeconds: 600     # Pod 最长运行时间，超过后强制终止
+
+      # ==========================================
+      # Pod 级安全上下文
+      # ==========================================
+      securityContext:
+        runAsUser: 1000                # Pod 中所有容器的默认运行用户 ID
+        runAsGroup: 1000               # Pod 中所有容器的默认运行组 ID
+        runAsNonRoot: true             # 是否必须以非 root 运行
+        fsGroup: 2000                  # 卷文件系统组 ID，新卷挂载后文件属组为此值
+        fsGroupChangePolicy: OnRootMismatch  # 卷属主变更策略：Always / OnRootMismatch
+        seLinuxOptions:                # SELinux 选项
+          level: "s0:c123,c456"
+          role: "system_r"
+          type: "spc_t"
+          user: "system_u"
+        seccompProfile:                # seccomp 配置文件
+          type: RuntimeDefault
+        appArmorProfile:               # AppArmor 配置文件（v1.30+）
+          type: RuntimeDefault
+        sysctls:                       # 命名空间 sysctl 参数
+          - name: net.ipv4.ip_forward
+            value: "1"
+          - name: kernel.msgmax
+            value: "65536"
+
+      # ==========================================
+      # 主机资源与设备
+      # ==========================================
+      hostAliases:                     # 自定义 hosts 文件条目（重复定义，与上面一致）
+        - ip: "127.0.0.1"
+          hostnames:
+            - "localhost"
+
+      # ==========================================
+      # 开销与资源预留
+      # ==========================================
+      overhead:                        # Pod 级别资源开销（用于虚拟化等场景）
+        cpu: "100m"
+        memory: "50Mi"
+
+      # ==========================================
+      # 运行时与沙箱
+      # ==========================================
+      runtimeClassName: gvisor         # 运行时类名称，使用 gvisor 等替代运行时
+      os:                            # 操作系统选择（v1.24+）
+        name: linux                  # linux / windows
+
+      # ==========================================
+      # 设置模式
+      # ==========================================
+      setHostnameAsFQDN: true        # 是否将 hostname 设置为 FQDN（完全限定域名）
+
+      # ==========================================
+      # 资源Claims（DRA 动态资源分配，v1.26+ Alpha）
+      # ==========================================
+      resourceClaims:                # 资源声明列表
+        - name: gpu
+          source:
+            resourceClaimName: my-gpu-claim
+            # resourceClaimTemplateName: my-gpu-claim-template
+
+      # ==========================================
+      # 调度门控（SchedulingGates，v1.27+ Beta）
+      # ==========================================
+      schedulingGates:               # 调度门控，阻止 Pod 被调度直到所有门控移除
+        - name: gate-1
+        - name: gate-2
+
+      # ==========================================
+      # 就绪门控（Readiness Gates）
+      # ==========================================
+      readinessGates:                # 额外的就绪条件门控
+        - conditionType: "www.example.com/feature-1"
+
+      # ==========================================
+      # 子资源与共享
+      # ==========================================
+      shareProcessNamespace: false     # 是否共享进程命名空间（所有容器可见彼此进程）
+      enableServiceLinks: true         # 是否将 Service 环境变量注入 Pod
+
+      # ==========================================
+      # 临时容器（Ephemeral Containers，调试用）
+      # ==========================================
+      # ephemeralContainers:           # 临时容器，用于调试，不能通过 spec 预先定义
+      #   只能通过 kubectl debug 动态添加

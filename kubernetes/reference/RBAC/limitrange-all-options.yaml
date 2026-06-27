@@ -1,0 +1,79 @@
+apiVersion: v1                              # API 版本，LimitRange 属于核心组 v1
+kind: LimitRange                          # 资源类型标识，必须为 LimitRange
+
+# ==========================================
+# metadata: 资源的元数据信息
+# ==========================================
+metadata:
+  name: example-limitrange                  # LimitRange 名称，同一命名空间内必须唯一
+  namespace: default                        # 所属命名空间（LimitRange 是命名空间级资源）
+  labels:                                   # 标签集合
+    app: example
+    type: resource-limit
+  annotations:                              # 注解集合
+    description: "Resource constraints for namespace"
+  generateName: limitrange-               # 名称前缀（与 name 互斥）
+
+# ==========================================
+# spec: LimitRange 的核心规约
+# ==========================================
+spec:
+  limits:                                   # 限制规则列表
+    # --- 规则 1: 容器级别限制 ---
+    - type: Container                       # 限制类型：Container（容器级）/ Pod（Pod 级）/ PersistentVolumeClaim（PVC 级）
+      max:                                  # 最大允许值（上限）
+        cpu: "2"                            # CPU 最大限制
+        memory: "4Gi"                       # 内存最大限制
+        ephemeral-storage: "10Gi"           # 临时存储最大限制
+      min:                                  # 最小允许值（下限）
+        cpu: "50m"                          # CPU 最小请求
+        memory: "64Mi"                      # 内存最小请求
+        ephemeral-storage: "100Mi"
+      default:                              # 默认限制值（未指定 limits 时自动设置）
+        cpu: "500m"                         # 默认 CPU 限制
+        memory: "512Mi"                     # 默认内存限制
+        ephemeral-storage: "1Gi"
+      defaultRequest:                       # 默认请求值（未指定 requests 时自动设置）
+        cpu: "100m"                         # 默认 CPU 请求
+        memory: "128Mi"                     # 默认内存请求
+        ephemeral-storage: "500Mi"
+      maxLimitRequestRatio:                 # 限制与请求的最大比率（防止过度超售）
+        cpu: "10"                           # CPU limits/requests 最大比率（如 limit=1, request 必须 >= 0.1）
+        memory: "4"                         # 内存 limits/requests 最大比率
+        ephemeral-storage: "5"
+
+    # --- 规则 2: Pod 级别限制 ---
+    - type: Pod
+      max:
+        cpu: "4"                            # Pod 内所有容器 CPU 限制总和上限
+        memory: "8Gi"                       # Pod 内所有容器内存限制总和上限
+        ephemeral-storage: "20Gi"
+      min:
+        cpu: "100m"
+        memory: "128Mi"
+        ephemeral-storage: "200Mi"
+      maxLimitRequestRatio:
+        cpu: "10"
+        memory: "4"
+
+    # --- 规则 3: PVC 级别限制 ---
+    - type: PersistentVolumeClaim
+      max:
+        storage: "100Gi"                  # PVC 最大存储请求
+      min:
+        storage: "1Gi"                    # PVC 最小存储请求
+      default:
+        storage: "10Gi"                   # PVC 默认存储请求
+      defaultRequest:
+        storage: "5Gi"                    # PVC 默认存储请求
+
+    # --- 规则 4: 特定资源类型的限制（GPU 等） ---
+    - type: Container
+      max:
+        nvidia.com/gpu: "4"               # GPU 最大限制
+      min:
+        nvidia.com/gpu: "0"
+      default:
+        nvidia.com/gpu: "0"
+      defaultRequest:
+        nvidia.com/gpu: "0"
