@@ -38,4 +38,4 @@ spec:
             name: redis-config
         - name: data
           persistentVolumeClaim:
-            - name: redis-pvc
+            claimName: redis-pvc
