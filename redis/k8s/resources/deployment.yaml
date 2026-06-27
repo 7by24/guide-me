@@ -27,11 +27,13 @@ spec:
               cpu: "500m"
           ports:
             - containerPort: 6379
-          command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+          command:
+            - redis-server
+            - /usr/local/etc/redis/redis.conf
+
           volumeMounts:
             - name: config
-              mountPath: "/usr/local/etc/redis/redis.conf"
-              subPath: redis.conf
+              mountPath: "/usr/local/etc/redis"
 
             - name: data
               mountPath: "/data"
@@ -40,6 +42,10 @@ spec:
         - name: config
           configMap:
             name: redis-config
+            items:
+              - key: redis.conf
+                path: redis.conf
+
         - name: data
           persistentVolumeClaim:
             claimName: redis-pvc
