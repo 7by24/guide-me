@@ -45,6 +45,7 @@ spec:
               readOnly: true
             - name: ssl-key
               mountPath: "/certs/client.key"
+              subPath: client.key
               readOnly: true
 
         - name: hopin-proxy
