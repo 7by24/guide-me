@@ -6,7 +6,7 @@ metadata:
 spec:
   secretName: tls-secret # shared-gateway中引用该secret名
   issuerRef:
-    name: letsencrypt-cert-issuer
+    name: domain-cert-issuer
     kind: Issuer
   dnsNames:
     - "domain"

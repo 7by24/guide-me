@@ -13,28 +13,28 @@ spec:
         namespaces:
           # 允许哪些命名空间的路由绑定
           from: All
-    - name: https-oyea
+    - name: https-domain
       protocol: HTTPS
       port: 443
-      hostname: "oyea.eu.org"
+      hostname: "domain"
       tls:
         mode: Terminate
         certificateRefs:
           # 引用 TLS 证书 Secret
-          - name: oyea-eu-org-secret
+          - name: domain-secret
             kind: Secret
       allowedRoutes:
         namespaces:
           from: All
-    - name: https-wildcard-oyea
+    - name: https-wildcard-domain
       protocol: HTTPS
       port: 443
-      hostname: "*.oyea.eu.org"
+      hostname: "*.domain"
       tls:
         mode: Terminate
         certificateRefs:
           # 引用 TLS 证书 Secret
-          - name: oyea-eu-org-secret
+          - name: domain-secret
             kind: Secret
       allowedRoutes:
         namespaces:

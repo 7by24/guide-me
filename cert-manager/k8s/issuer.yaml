@@ -1,18 +1,18 @@
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: letsencrypt-cert-issuer
+  name: domain-cert-issuer
   namespace: nginx-gateway
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
     email: emailAddress
     privateKeySecretRef:
-      name: letsencryt-account-key
+      name: domain-account-key
     solvers:
       - dns01:
           cloudflare:
             email: emailAddress
             apiTokenSecretRef:
-              name: cloudflare-token-secret
+              name: cloudflare-domain-token
               key: api-token
