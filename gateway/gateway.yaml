@@ -1,0 +1,41 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: public-gateway
+  namespace: nginx-gateway
+spec:
+  gatewayClassName: nginx
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          # 允许哪些命名空间的路由绑定
+          from: All
+    - name: https-oyea
+      protocol: HTTPS
+      port: 443
+      hostname: "oyea.eu.org"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          # 引用 TLS 证书 Secret
+          - name: oyea-eu-org-secret
+            kind: Secret
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https-wildcard-oyea
+      protocol: HTTPS
+      port: 443
+      hostname: "*.oyea.eu.org"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          # 引用 TLS 证书 Secret
+          - name: oyea-eu-org-secret
+            kind: Secret
+      allowedRoutes:
+        namespaces:
+          from: All
