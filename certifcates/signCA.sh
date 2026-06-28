@@ -80,20 +80,3 @@ rm -f ca.*
 echo -e "==================证书签发完成=================="
 echo ""
 exit 0
-
-# 服务器端需要对postres的用户权限进行设置，允许使用证书认证登录
-# docker
-# sudo chown 999:999 server.key
-# sudo chmod 600 server.key
-# sudo chmod 644 server.crt ca.crt
-# echo -e "${GREEN}$(ls -lhv)${RES}"
-
-
-# 客户端证书在实际运行用户的home目录下
-# 在当前设置中即在 git的home目录下的.postgresql目录下
-# mkdir -p ~/.postgresql
-# cp client.crt ~/.postgresql/postgresql.crt
-# cp client.key ~/.postgresql/postgresql.key
-# cp ca.crt ~/.postgresql/root.crt
-# chmod 600 ~/.postgresql/postgresql.key
-# chmod 644 ~/.postgresql/postgresql.crt ~/.postgresql/root.crt

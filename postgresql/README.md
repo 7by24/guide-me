@@ -24,3 +24,13 @@ kubectl exec -it postgres-statefulset-0 -n postgres -- createdb -U username user
 # 列出所有该用户下的数据库，看看创建成功没有
 kubectl exec -it postgres-statefulset-0 -n postgres -- psql -U username -d default -c '\l'
 ```
+
+```
+# 服务器端需要对postres的用户权限进行设置，允许使用证书认证登录
+# docker
+# sudo chown 999:999 server.key
+# sudo chmod 600 server.key
+# sudo chmod 644 server.crt ca.crt
+# echo -e "${GREEN}$(ls -lhv)${RES}"
+
+```
