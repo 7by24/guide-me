@@ -52,19 +52,10 @@ spec:
           args:
             - -c
             - config_file=/conf.d/postgresql.conf
-            # - -c
-            # - hba_file=/conf.d/pg_hba.conf
 
           volumeMounts:
             - name: config
               mountPath: /conf.d
-
-            # - name: config
-            #   mountPath: /conf.d/postgresql.conf
-            #   subPath: postgresql.conf
-            # - name: config
-            #   mountPath: /conf.d/pg_hba.conf
-            #   subPath: pg_hba.conf
 
             - name: ssl-certs
               mountPath: /certs

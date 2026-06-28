@@ -39,14 +39,6 @@ spec:
                 name: hopin-config
             - secretRef:
                 name: hopin-secret
-          volumeMounts:
-            - name: ssl-certs
-              mountPath: "/certs"
-              readOnly: true
-            - name: ssl-key
-              mountPath: "/certs/client.key"
-              subPath: client.key
-              readOnly: true
 
         - name: hopin-proxy
           image: hoppscotch/proxyscotch:v0.1.4
@@ -60,12 +52,3 @@ spec:
               cpu: "250m"
           ports:
             - containerPort: 9159
-      volumes:
-        - name: ssl-certs
-          secret:
-            secretName: hopin-ssl-certs
-            defaultMode: 0444
-        - name: ssl-key
-          secret:
-            secretName: hopin-ssl-key
-            defaultMode: 0400

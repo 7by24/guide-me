@@ -47,15 +47,6 @@ spec:
                   name: pgadmin-secret
                   key: PGADMIN_DEFAULT_PASSWORD
 
-            # - name: PGADMIN_CONFIG_CONFIG_DATABASE_URI
-            #   valueFrom:
-            #     secretKeyRef:
-            #       name: pgadmin-secret
-            #       key: PGADMIN_CONFIG_CONFIG_DATABASE_URI
-
-            # - name: PGADMIN_CONFIG_CONFIG_DATABASE_URI_SSL_MODE
-            # value: "verify-ca"
-
           volumeMounts:
             - name: ssl-certs
               mountPath: "/certs"
@@ -84,7 +75,3 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: pgadmin-pvc
-        - name: ssl-certs
-          secret:
-            secretName: pgadmin-ssl
-            defaultMode: 0400
