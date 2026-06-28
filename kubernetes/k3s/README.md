@@ -30,7 +30,11 @@ curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | bash
 
 ### 卸载 k3s
 ```
+# server
 /usr/local/bin/k3s-uninstall.sh
+
+# agent
+/usr/local/bin/k3s-agent-uninstall.sh
 ```
 
 ### 卸载 helm
