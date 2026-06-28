@@ -26,13 +26,13 @@ if [ -f 'ca.crt' ]; then
 fi
 echo ""
 ##################################################################################
-echo -e "${YELLOW}生成CA私钥和证书${RES}"
+echo -e "${YELLOW}生成RSA私钥和证书${RES}"
 sleep 1
 # 1. 生成 CA私钥
 openssl genrsa -out ca.key 4096
 # 2. 生成 CA证书
 openssl req -new -x509 -sha256 -nodes -days 3650 -key ca.key -out ca.crt \
-  -subj "/C=CN/ST=Sichuan/L=Chengdu/O=oyea/OU=IT/CN=supdbo"
+  -subj "/C=countryCode/ST=province/L=city/O=og/OU=department/CN=commonName"
 echo -e "${GREEN}$(ls -A)${RES}"
 echo ""
 ##################################################################################
@@ -47,7 +47,7 @@ echo -e "${YELLOW}签发证书${RES}"
 sleep 1
 # 4. 生成服务器证书请求
 openssl req -new -sha256 -key server.key -out server.csr \
-  -subj "/C=CN/ST=Sichuan/L=Chengdu/O=oyea/OU=IT/CN=supdbo"
+  -subj "/C=countryCode/ST=province/L=city/O=og/OU=department/CN=commonName"
 # 5. 使用 CA签发服务器证书
 openssl x509 -req -in server.csr -CA ../ca.crt -CAkey ../ca.key \
   -CAcreateserial -out server.crt -days 365 -sha256
@@ -68,7 +68,7 @@ echo -e "${YELLOW}签发证书${RES}"
 sleep 1
 # 7. 生成客户端证书请求
 openssl req -new -sha256 -key client.key -out client.csr \
-  -subj "/C=CN/ST=Sichuan/L=Chengdu/O=oyea/OU=IT/CN=supdbo"
+  -subj "/C=countryCode/ST=province/L=city/O=og/OU=department/CN=commonName"
 # 8. 使用 CA签发客户端证书
 openssl x509 -req -in client.csr -CA ../ca.crt -CAkey ../ca.key \
   -CAcreateserial -out client.crt -days 365 -sha256
