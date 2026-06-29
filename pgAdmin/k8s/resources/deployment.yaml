@@ -48,8 +48,6 @@ spec:
                   key: PGADMIN_DEFAULT_PASSWORD
 
           volumeMounts:
-            - name: ssl-certs
-              mountPath: "/certs"
             - name: data
               mountPath: "/var/lib/pgadmin"
 
