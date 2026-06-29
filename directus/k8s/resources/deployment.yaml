@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: directus-deployment
+  namespace: directus
+  labels:
+    app: directus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: directus
+  template:
+    metadata:
+      labels:
+        app: directus
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1000
+      containers:
+        - name: directus
+          image: directus/directus:12.0.2
+          resources:
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+          ports:
+            - containerPort: 8055
+          envFrom:
+            - configMapRef:
+                name: config
+            - secretRef:
+                name: secret
+          volumeMounts:
+            - name: data
+              mountPath: /directus
+          readinessProbe:
+            httpGet:
+              path: /server/ping
+              port: 8055
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: directus-pvc
+        - name: config
+          configMap:
+            name: directus-config
+        - name: secret
+          secretName: directus-config
