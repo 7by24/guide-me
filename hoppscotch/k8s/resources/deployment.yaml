@@ -39,6 +39,18 @@ spec:
                 name: hopin-config
             - secretRef:
                 name: hopin-secret
+          volumeMounts:
+            - name: ssl-cert
+              mountPath: "/certs"
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /backend/ping
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
 
         - name: hopin-proxy
           image: hoppscotch/proxyscotch:v0.1.4
@@ -52,3 +64,11 @@ spec:
               cpu: "250m"
           ports:
             - containerPort: 9159
+      volumes:
+        - name: ssl-cert
+          secret:
+            secretName: hopin-ssl-cert
+            items:
+              - key: ca.crt
+                path: ca.crt
+                mode: 0644
