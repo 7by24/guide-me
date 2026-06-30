@@ -67,11 +67,11 @@ stylesheet:
 links:
   - name: "Github"
     icon: "fab fa-github"
-    url: "https://github.com/7by24"
+    url: "https://github.com/xxxx"
     target: "_blank" # optional html a tag target attribute
   - name: "Grafana"
     icon: "fas fa-wave-square"
-    url: "https://grafana.oyea.eu.org"
+    url: "https://grafana.xxxx.xxx.xxx"
     target: "_blank"
   # this will link to a second homer page that will load config from additional-page.yml and keep default config values as in config.yml file
   # see url field and assets/additional-page.yml.dist used in this example:
@@ -94,7 +94,7 @@ services:
         logo: "assets/tools/gitea.png"
         subtitle: "Gitea"
         tag: "selfhosted"
-        url: "https://git.oyee.eu.org"
+        url: "https://git.xxx.xxx.xxxx"
         target: "_blank"
 
       - name: "Hopin"
@@ -102,7 +102,7 @@ services:
         logo: "assets/tools/hopin.png"
         subtitle: "API测试工具"
         tag: "selfhosted"
-        url: "https://hopin.oyea.eu.org"
+        url: "https://hopin.xxx.xx.xxx"
         target: "_blank"
 
   - name: "资源"
@@ -113,7 +113,7 @@ services:
         logo: "assets/tools/directus.png"
         subtitle: "无头API平台"
         tag: "selfhosted"
-        url: "https://directus.oyea.eu.org"
+        url: "https://directus.xxx.xxx.xxx"
         target: "_blank"
 
       - name: "pgAdmin"
@@ -121,5 +121,5 @@ services:
         logo: "assets/tools/pgadmin.png"
         subtitle: "Postgresql管理工具"
         tag: "selfhosted"
-        url: "https://postgres.oyea.eu.org"
+        url: "https://postgres.xx.xxx.xxx"
         target: "_blank"

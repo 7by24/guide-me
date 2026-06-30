@@ -36,23 +36,15 @@ spec:
             - secretRef:
                 name: secret
           volumeMounts:
-            - name: data
-              mountPath: /directus
-          readinessProbe:
-            httpGet:
-              path: /server/ping
-              port: 8055
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
+            - name: uploads
+              mountPath: /directus/uploads
+            - name: extensions
+              mountPath: /directus/extensions
 
       volumes:
-        - name: data
+        - name: uploads
           persistentVolumeClaim:
-            claimName: directus-pvc
-        - name: config
-          configMap:
-            name: directus-config
-        - name: secret
-          secretName: directus-config
+            claimName: directus-uploads-pvc
+        - name: extensions
+          persistentVolumeClaim:
+            claimName: directus-extensions-pvc
