@@ -1,0 +1,126 @@
+# ============================================
+# K3s + Gateway API + 内网 Prometheus 配置
+# ============================================
+
+# --- 1. Prometheus ---
+prometheus:
+  prometheusSpec:
+    # 仅监听集群内部
+    externalUrl: "http://prometheus-svc.prometheus.svc.cluster.local:9090"
+    routePrefix: /
+
+    # 存储配置
+    retention: 15d
+    retentionSize: "1GB"
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+    # 资源限制
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        cpu: 500m
+        memory: 2Gi
+
+# --- 2. Alertmanager ---
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    externalUrl: "http://alertmanager.prometheus.svc.cluster.local:9093"
+
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+
+# --- 3. Grafana 配置（通过 Gateway API 暴露）---
+grafana:
+  enabled: true
+  adminUser: "admin"
+  adminPassword: "password" # 生产环境务必修改
+
+  # 定义service类型和端口
+  service:
+    # type: ClusterIP
+    port: 80
+    targetPort: 3000
+
+  # 禁用默认的 Ingress（使用 Gateway API）
+  ingress:
+    enabled: false
+
+  # 持久化
+  persistence:
+    enabled: true
+    storageClassName: local-path
+    size: 5Gi
+
+# --- 4. K3s 控制平面组件 ---
+defaultRules:
+  create: true
+  rules:
+    etcd: false # 单节点 K3s 用 SQLite
+    kubeProxy: false
+
+kubeControllerManager:
+  enabled: true
+  endpoints:
+    - 10.0.0.10 # 替换为你的 K3s Server IP
+  service:
+    enabled: true
+    port: 10252
+    targetPort: 10252
+  serviceMonitor:
+    enabled: true
+    https: false
+
+kubeScheduler:
+  enabled: true
+  endpoints:
+    - 10.0.0.10
+  service:
+    enabled: true
+    port: 10259
+    targetPort: 10259
+  serviceMonitor:
+    enabled: true
+    https: false
+
+kubeProxy:
+  enabled: true
+  endpoints:
+    - 10.0.0.10
+  service:
+    enabled: true
+    port: 10249
+    targetPort: 10249
+  serviceMonitor:
+    enabled: true
+    https: false
+
+kubeEtcd:
+  enabled: false
+
+kubelet:
+  enabled: true
+  serviceMonitor:
+    https: false
+
+# --- 5. 其他组件 ---
+kubeStateMetrics:
+  enabled: true
+
+nodeExporter:
+  enabled: true
